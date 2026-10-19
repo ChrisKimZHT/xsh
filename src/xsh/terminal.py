@@ -29,25 +29,24 @@ class Terminal:
         self._tool_name = ""  # 当前工具名称，供后续状态更新复用
 
     def _tool_status(self, status: str, result_chars: int | None = None) -> None:
-        """在同一行立即刷新工具状态；管道输出只保留完成状态。"""
+        """原地刷新工具状态面板；管道输出只保留完成状态。"""
         style = {"Pending": "yellow", "Running": "cyan", "Completed": "green"}[status]
-        text = Text(style=style, no_wrap=True, overflow="ellipsis")
-        text.append(f"[{self._tool_name}]", style="bold")
-        text.append(f" {status}", style=style)
+        text = Text(status, style=f"bold {style}")
         if result_chars is not None:
-            text.append(f", result: {result_chars} characters")
+            text.append(f" | {result_chars} chars", style="dim")
+        panel = Panel(text, title=Text(f"Tool {self._tool_name}"), title_align="left", border_style=style, expand=False)
         if self.errors.is_terminal:
             if self._tool_live is None:
                 # 状态仅在事件到来时变化，无需后台定时刷新。
-                self._tool_live = Live(text, console=self.errors, auto_refresh=False)
+                self._tool_live = Live(panel, console=self.errors, auto_refresh=False)
                 self._tool_live.start(refresh=True)
             else:
-                self._tool_live.update(text, refresh=True)
-        elif result_chars is not None:  # 管道不支持原地刷新，只输出最终结果行。
-            self.errors.print(text)
+                self._tool_live.update(panel, refresh=True)
+        elif result_chars is not None:  # 管道不支持原地刷新，只输出最终结果面板。
+            self.errors.print(panel)
 
     def _stop_tool(self) -> None:
-        """停止刷新并保留最后一行状态，重复调用也可安全退出。"""
+        """停止刷新并保留最终状态面板，重复调用也可安全退出。"""
         if self._tool_live is not None:
             self._tool_live.stop()
             self._tool_live = None
@@ -138,10 +137,15 @@ class Terminal:
 
     def outcome(self, result: TurnResult) -> None:
         """打印 Turn 结果"""
-        style = "green" if result.status == "completed" else "yellow"
-        self.errors.print(Text(f"{result.status} · steps={result.steps}", style=style))
+        style = {"completed": "green", "error": "red"}.get(result.status, "yellow")
+        status = result.status.replace("_", " ").capitalize()
+        summary = Text(status, style=f"bold {style}")
+        summary.append(f" | {result.steps} {'step' if result.steps == 1 else 'steps'}", style="dim")
         if result.error:
-            self.error(result.error)
+            summary.append("\n\n")
+            summary.append(result.error, style="red")
+        self.errors.print()
+        self.errors.print(Panel(summary, title="Turn result", title_align="left", border_style=style, expand=False))
 
     def error(self, text: str) -> None:
         """打印真正的错误信息"""
