@@ -10,7 +10,6 @@ from openai import OpenAI
 from pydantic import ValidationError
 
 from xsh.agent import Agent
-from xsh.cli_output import CliOutput
 from xsh.config import Settings
 from xsh.constants import (
     CLI_ENV_FILE,
@@ -25,6 +24,7 @@ from xsh.constants import (
 from xsh.model import OpenAIModel
 from xsh.prompt import build_prompt
 from xsh.session import Session
+from xsh.terminal import Terminal
 from xsh.tools.base import ToolRegistry
 from xsh.tools.files import FileTools
 from xsh.tools.shell import shell_tool
@@ -55,7 +55,7 @@ def parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     load_dotenv(Path.cwd() / CLI_ENV_FILE, override=False)
-    output = CliOutput(verbose=args.verbose)
+    terminal = Terminal(verbose=args.verbose)
 
     try:
         workspace = (args.workspace or Path.cwd()).resolve(strict=True)
@@ -63,7 +63,7 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("Workspace must be a directory")
 
         if args.show_prompt:
-            output.system_prompt(build_prompt(workspace, allow_shell=args.allow_shell))
+            terminal.system_prompt(build_prompt(workspace, allow_shell=args.allow_shell))
             return 0
 
         # 覆盖 .env 配置的命令行参数
@@ -87,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
             default_path = workspace / Path(CLI_SESSION_DIRECTORY) / (datetime.now().strftime(CLI_SESSION_TIMESTAMP_FORMAT) + uuid4().hex[:CLI_SESSION_ID_LENGTH] + CLI_SESSION_SUFFIX)
             path = args.session or default_path
             session = Session.create(path, workspace, build_prompt(workspace, allow_shell=args.allow_shell),)
-        output.session(session.path)
+        terminal.session(session.path)
 
         # 准备工具列表
         definitions = FileTools(workspace).definitions()
@@ -107,13 +107,13 @@ def main(argv: list[str] | None = None) -> int:
                 session=session,
                 tools=ToolRegistry(definitions),
                 max_steps=settings.max_steps,
-                report=output.report,
+                report=terminal.report,
             )
 
             def run(prompt: str) -> int:
                 # 单轮运行
                 outcome = agent.run(prompt)
-                output.outcome(outcome)
+                terminal.outcome(outcome)
                 if outcome.status == "completed":
                     return 0
                 elif outcome.status == "cancelled":
@@ -126,25 +126,25 @@ def main(argv: list[str] | None = None) -> int:
                 return run(args.prompt)
 
             # 交互式多轮运行
-            output.intro()
+            terminal.intro()
             while True:  # ※ Agent Turn 循环
                 try:
-                    prompt = output.prompt()  # 取得用户输入
+                    prompt = terminal.prompt()  # 取得用户输入
                 except (EOFError, KeyboardInterrupt):
-                    output.newline()
+                    terminal.newline()
                     return 0
                 if prompt in CLI_EXIT_COMMANDS:
                     return 0
                 elif prompt in CLI_HISTORY_COMMANDS:
-                    output.history(session.messages)
+                    terminal.history(session.messages)
                 elif prompt:
                     run(prompt)  # 运行 Agent
 
     except ValidationError as error:  # 配置验证失败
         for detail in error.errors(include_input=False, include_url=False):
-            output.error(f"Configuration: {'.'.join(map(str, detail['loc']))}: {detail['msg']}")
+            terminal.error(f"Configuration: {'.'.join(map(str, detail['loc']))}: {detail['msg']}")
         return 2
 
     except (OSError, ValueError, KeyError) as error:
-        output.error(f"xsh: {error}")
+        terminal.error(f"xsh: {error}")
         return 2

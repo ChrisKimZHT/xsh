@@ -13,10 +13,10 @@ AGENT_DEFAULT_MAX_STEPS = 100
 # model.py
 MODEL_DEFAULT_MAX_TOKENS = 65536
 
-# cli_output.py
-CLI_OUTPUT_REFRESH_PER_SECOND = 10
-CLI_OUTPUT_INTRO = "Enter a task; /history shows messages, /exit quits. Ctrl+C interrupts a turn."
-CLI_OUTPUT_PROMPT = "\n[bold cyan]xsh> [/]"
+# terminal.py
+TERMINAL_REFRESH_PER_SECOND = 10
+TERMINAL_INTRO = "Enter a task; /history shows messages, /exit quits. Ctrl+C interrupts a turn."
+TERMINAL_PROMPT = "\n[bold cyan]xsh> [/]"
 
 # cli.py
 CLI_ENV_FILE = ".env"

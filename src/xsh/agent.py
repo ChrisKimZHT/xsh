@@ -59,7 +59,11 @@ class Agent:
                 # 请求模型得到响应
                 self.report("assistant_start", "")
                 try:
-                    response = self.model.complete(request, on_text=lambda text: self.report("assistant_delta", text))
+                    response = self.model.complete(
+                        request,
+                        on_text=lambda text: self.report("assistant_delta", text),
+                        on_reasoning=lambda text: self.report("assistant_reasoning_delta", text),
+                    )
                 finally:
                     self.report("assistant_end", "")
                 self.session.record(

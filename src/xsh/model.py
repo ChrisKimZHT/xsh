@@ -18,7 +18,7 @@ class Model(Protocol):
         """由项目内格式的消息和工具列表构建模型请求体"""
         pass
 
-    def complete(self, request: dict, on_text: Callable[[str], None] | None = None) -> ModelResponse:
+    def complete(self, request: dict, on_text: Callable[[str], None] | None = None, on_reasoning: Callable[[str], None] | None = None) -> ModelResponse:
         """输入 build_request 构建的请求体，返回符合项目 ModelResponse 格式的响应。on_text 回调函数用于流式输出文本内容"""
         pass
 
@@ -43,7 +43,7 @@ class OpenAIModel:
             request["tools"] = tools
         return request
 
-    def complete(self, request: dict, on_text: Callable[[str], None] | None = None) -> ModelResponse:
+    def complete(self, request: dict, on_text: Callable[[str], None] | None = None, on_reasoning: Callable[[str], None] | None = None) -> ModelResponse:
         content: list[str] = []                # 正常文本结果
         refusals: list[str] = []               # 拒绝文本结果
         reasoning: list[str] = []              # 推理文本结果
@@ -60,6 +60,12 @@ class OpenAIModel:
                 choice = chunk.choices[0]
                 delta = choice.delta
 
+                # 推理文本先于同一块中的正文显示。
+                if value := getattr(delta, "reasoning_content", None):
+                    reasoning.append(value)
+                    if on_reasoning:
+                        on_reasoning(value)
+
                 # 正常文本块
                 if delta.content:
                     content.append(delta.content)
@@ -71,10 +77,6 @@ class OpenAIModel:
                     refusals.append(delta.refusal)
                     if on_text:
                         on_text(delta.refusal)
-
-                # 推理文本块，某些服务商可能没有该字段
-                if value := getattr(delta, "reasoning_content", None):
-                    reasoning.append(value)
 
                 # 工具调用块，可能为 None
                 for part in delta.tool_calls or []:
