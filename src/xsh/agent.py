@@ -1,7 +1,7 @@
 """agent.py - Agent 对象，维护 Agent 的 Step 循环"""
 
 from collections.abc import Callable
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 
 from xsh.constants import (
     AGENT_DEFAULT_MAX_STEPS,
@@ -52,8 +52,31 @@ class Agent:
         usage_partial = False
         context_tokens = None
 
-        def finish(result: TurnResult) -> TurnResult:
-            return self._finish(replace(result, usage=usage.copy(), usage_partial=usage_partial, context_tokens=context_tokens))
+        def finish(status: str, text: str = "", error: str = "") -> TurnResult:
+            """结束该 Turn：生成结果、停止工具状态刷新并落盘 turn_end"""
+            result = TurnResult(
+                status=status,
+                steps=step,
+                text=text,
+                error=error,
+                usage=usage.copy(),
+                usage_partial=usage_partial,
+                context_tokens=context_tokens,
+            )
+            # 无论正常结束还是中断、异常，都停止工具状态刷新，避免影响后续终端输出。
+            self.report("tool_end", "")
+            self.session.record(
+                "turn_end",
+                {
+                    "status": result.status,
+                    "steps": result.steps,
+                    "error": result.error,
+                    "usage": result.usage,
+                    "usage_partial": result.usage_partial,
+                    "context_tokens": result.context_tokens,
+                },
+            )
+            return result
 
         try:
             self.report("turn_start", "")
@@ -112,16 +135,13 @@ class Agent:
                 # 检查结束原因，若异常结束则该 Turn 直接结束
                 if response.finish_reason not in {"stop", "tool_calls"}:
                     return finish(
-                        TurnResult(
-                            status="max_tokens" if response.finish_reason == "length" else "stopped",
-                            steps=step,
-                            text=message.content or "",
-                        )
+                        "max_tokens" if response.finish_reason == "length" else "stopped",
+                        message.content or "",
                     )
 
                 # 如果没有工具调用，则该 Turn 结束
                 if not message.tool_calls:
-                    return finish(TurnResult("completed", step, message.content or ""))
+                    return finish("completed", message.content or "")
 
                 # 如果有工具调用，则依次执行工具调用
                 for call in message.tool_calls:
@@ -133,34 +153,12 @@ class Agent:
                     self.report("tool_result", result.content or "")
 
             # 循环跑完了，说明 Step 超限，该 Turn 可能未完成，但必须结束
-            return finish(
-                TurnResult(
-                    "step_limit",
-                    step,
-                    error="Maximum model steps reached; completed tool results are saved.",
-                )
-            )
+            return finish("step_limit", error="Maximum model steps reached; completed tool results are saved.")
 
         except KeyboardInterrupt:
             self.session.repair_pending()
-            return finish(TurnResult("cancelled", step, error="Interrupted by user."))
+            return finish("cancelled", error="Interrupted by user.")
 
         except Exception as error:
             self.session.repair_pending()
-            return finish(TurnResult("error", step, error=f"{type(error).__name__}: {error}"))
-
-    def _finish(self, result: TurnResult) -> TurnResult:
-        # 无论正常结束还是中断、异常，都停止工具状态刷新，避免影响后续终端输出。
-        self.report("tool_end", "")
-        self.session.record(
-            "turn_end",
-            {
-                "status": result.status,
-                "steps": result.steps,
-                "error": result.error,
-                "usage": result.usage,
-                "usage_partial": result.usage_partial,
-                "context_tokens": result.context_tokens,
-            },
-        )
-        return result
+            return finish("error", error=f"{type(error).__name__}: {error}")
