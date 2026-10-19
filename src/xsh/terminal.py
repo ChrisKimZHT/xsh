@@ -66,9 +66,9 @@ class Terminal:
                 text = Text(self._text.replace("\r\n", " ").replace("\n", " ").replace("\r", " "), style="dim")
                 # Panel 左右边框和默认内边距各占两个字符。
                 lines = text.wrap(self.console, max(1, self.console.width - 4))
-                return Panel(lines[-1] if lines else Text(""), title="Thinking", border_style="dim")
-            return Panel(Text(self._text, style="dim"), title="Thinking", border_style="dim")
-        return Markdown(self._text)
+                return Panel(lines[-1] if lines else Text(""), title="Thinking", title_align="left", border_style="dim")
+            return Panel(Text(self._text, style="dim"), title="Thinking", title_align="left", border_style="dim")
+        return Panel(Markdown(self._text), title="Assistant", title_align="left", border_style="cyan")
 
     def report(self, kind: str, text: str) -> None:
         """报告事件，以打印到终端"""
@@ -120,7 +120,7 @@ class Terminal:
             self._stop_tool()
             self._tool_started_at = None
             if self.verbose:
-                self.errors.print(Panel(Text(text), title="Tool result", border_style="dim"))
+                self.errors.print(Panel(Text(text), title="Tool result", title_align="left", border_style="dim"))
 
         elif kind == "step":  # 模型 Step 进度
             # Turn 起始使用粗分隔线，后续 Step 使用细分隔线，便于滚动查找。
@@ -177,7 +177,7 @@ class Terminal:
 
     def intro(self) -> None:
         """打印终端介绍信息"""
-        self.errors.print(Panel(TERMINAL_INTRO, title="xsh", border_style="cyan"))
+        self.errors.print(Panel(TERMINAL_INTRO, title="xsh", title_align="left", border_style="cyan"))
 
     def prompt(self) -> str:
         """打印终端提示符，并**接受**用户输入"""
@@ -194,10 +194,10 @@ class Terminal:
                 continue
             self.console.rule(Text(message.role, style="cyan"))
             if message.reasoning_content:
-                self.console.print(Panel(Text(message.reasoning_content, style="dim"), title="Thinking", border_style="dim"))
+                self.console.print(Panel(Text(message.reasoning_content, style="dim"), title="Thinking", title_align="left", border_style="dim"))
             if message.content:
                 if self.console.is_terminal and message.role == "assistant":
-                    self.console.print(Markdown(message.content))
+                    self.console.print(Panel(Markdown(message.content), title="Assistant", title_align="left", border_style="cyan"))
                 else:
                     self.console.print(Text(message.content))
             for call in message.tool_calls:
