@@ -25,6 +25,32 @@ class Terminal:
         self._live: Live | None = None  # Live 对象，用于在终端中动态刷新模型输出
         self._text = ""  # 缓存拼接后的模型输出文本
         self._reasoning = False
+        self._tool_live: Live | None = None  # 独立维护工具状态行，避免与模型输出的 Live 混用
+        self._tool_name = ""  # 当前工具名称，供后续状态更新复用
+
+    def _tool_status(self, status: str, result_chars: int | None = None) -> None:
+        """在同一行立即刷新工具状态；管道输出只保留完成状态。"""
+        style = {"Pending": "yellow", "Running": "cyan", "Completed": "green"}[status]
+        text = Text(style=style, no_wrap=True, overflow="ellipsis")
+        text.append(f"[{self._tool_name}]", style="bold")
+        text.append(f" {status}", style=style)
+        if result_chars is not None:
+            text.append(f", result: {result_chars} characters")
+        if self.errors.is_terminal:
+            if self._tool_live is None:
+                # 状态仅在事件到来时变化，无需后台定时刷新。
+                self._tool_live = Live(text, console=self.errors, auto_refresh=False)
+                self._tool_live.start(refresh=True)
+            else:
+                self._tool_live.update(text, refresh=True)
+        elif result_chars is not None:  # 管道不支持原地刷新，只输出最终结果行。
+            self.errors.print(text)
+
+    def _stop_tool(self) -> None:
+        """停止刷新并保留最后一行状态，重复调用也可安全退出。"""
+        if self._tool_live is not None:
+            self._tool_live.stop()
+            self._tool_live = None
 
     def _render_text(self):
         """将模型的 思维+输出 渲染为 灰色文本思维块 + Markdown输出块"""
@@ -78,14 +104,33 @@ class Terminal:
             self._text = ""
 
         elif kind == "tool_result":  # 工具调用结果
+            # 按实际返回文本统计字符数，先刷新完成状态，再结束实时显示。
+            self._tool_status("Completed", result_chars=len(text))
+            self._stop_tool()
             if self.verbose:
                 self.errors.print(Panel(Text(text), title="Tool result", border_style="dim"))
 
         elif kind == "step":  # 模型 Step 进度
-            self.errors.print(Text(text, style="dim"))
+            # Turn 起始使用粗分隔线，后续 Step 使用细分隔线，便于滚动查找。
+            first_step = text.endswith(", Step 1")
+            self.errors.print()
+            self.errors.rule(
+                Text(text, style="bold cyan" if first_step else "bold blue"),
+                characters="━" if first_step else "─",
+                style="cyan" if first_step else "blue",
+                align="left",
+            )
 
         elif kind == "tool":  # 模型调用工具
-            self.errors.print(Text(f"Tool · {text}", style="cyan"))
+            # 压平名称中的换行和多余空白，保证状态始终占一行。
+            self._tool_name = " ".join(text.split())
+            self._tool_status("Pending")
+
+        elif kind == "tool_start":  # 工具即将执行，原地更新为运行状态
+            self._tool_status("Running")
+
+        elif kind == "tool_end":  # Turn 结束时兜底清理，包括工具执行中断或异常的情况
+            self._stop_tool()
 
     def session(self, path: object) -> None:
         """打印会话路径"""

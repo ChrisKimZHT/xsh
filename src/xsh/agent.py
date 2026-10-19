@@ -48,6 +48,7 @@ class Agent:
         try:
             self.session.repair_pending()  # 失败的工具调用会直接收到错误报告字符串作为结果
             self.session.append(Message(role="user", content=prompt))  # 添加用户输入到会话中
+            # 每条用户消息对应一个 Turn，从会话历史计数以支持恢复后继续编号。
             turn = sum(message.role == "user" for message in self.session.messages)
 
             # ※ Agent Step 循环
@@ -101,8 +102,9 @@ class Agent:
 
                 # 如果有工具调用，则依次执行工具调用
                 for call in message.tool_calls:
-                    self.report("tool", call.name)
+                    self.report("tool", call.name)  # 通知终端已收到当前工具调用
                     self.session.start_tool(call)
+                    self.report("tool_start", call.name)  # 开始记录落盘后、实际执行前更新运行状态
                     result = self.tools.execute(call)
                     self.session.append(result)
                     self.report("tool_result", result.content or "")
@@ -125,6 +127,8 @@ class Agent:
             return self._finish(TurnResult("error", step, error=f"{type(error).__name__}: {error}"))
 
     def _finish(self, result: TurnResult) -> TurnResult:
+        # 无论正常结束还是中断、异常，都停止工具状态刷新，避免影响后续终端输出。
+        self.report("tool_end", "")
         self.session.record(
             "turn_end",
             {
