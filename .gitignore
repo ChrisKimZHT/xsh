@@ -1,4 +1,5 @@
 .ruff_cache
+.xsh
 
 ### Python template
 # Byte-compiled / optimized / DLL files
