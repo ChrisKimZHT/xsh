@@ -82,7 +82,7 @@ class Terminal:
                 self.errors.print(Panel(Text(text), title="Tool result", border_style="dim"))
 
         elif kind == "step":  # 模型 Step 进度
-            self.errors.print(Text(f"Step {text}", style="dim"))
+            self.errors.print(Text(text, style="dim"))
 
         elif kind == "tool":  # 模型调用工具
             self.errors.print(Text(f"Tool · {text}", style="cyan"))

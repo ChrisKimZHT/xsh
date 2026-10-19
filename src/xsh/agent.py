@@ -48,13 +48,14 @@ class Agent:
         try:
             self.session.repair_pending()  # 失败的工具调用会直接收到错误报告字符串作为结果
             self.session.append(Message(role="user", content=prompt))  # 添加用户输入到会话中
+            turn = sum(message.role == "user" for message in self.session.messages)
 
             # ※ Agent Step 循环
             for step in range(1, self.max_steps + 1):
                 # 准备模型请求参数，取出会话消息和工具列表
                 request = self.model.build_request(self.session.messages, self.tools.schemas())
                 self.session.record("request", {"step": step, "body": request})
-                self.report("step", str(step))
+                self.report("step", f"Turn {turn}, Step {step}")
 
                 # 请求模型得到响应
                 self.report("assistant_start", "")
