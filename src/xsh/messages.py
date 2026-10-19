@@ -1,4 +1,4 @@
-"""The model-visible vocabulary. No provider SDK objects enter the agent loop."""
+"""messages.py - 消息相关的类定义"""
 
 from dataclasses import dataclass, field
 from typing import Any, Literal
@@ -7,24 +7,27 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ToolCall(BaseModel):
+    """工具调用对象，表示模型**请求**中包含的工具调用信息"""
     model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
 
     id: str = Field(min_length=1)
     name: str = Field(min_length=1)
-    arguments: str  # Keep raw JSON so invalid arguments can become a tool error.
+    arguments: str  # 保持原始 JSON，以便无效参数可以成为工具错误。
 
 
 class Message(BaseModel):
+    """模型消息对象，表示模型**请求和响应**中的消息信息"""
     model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
 
     role: Literal["system", "user", "assistant", "tool"]
     content: str | None = None
+    reasoning_content: str | None = None
     tool_calls: list[ToolCall] = Field(default_factory=list)
     tool_call_id: str | None = None
-    reasoning_content: str | None = None
 
     @model_validator(mode="after")
     def check_shape(self) -> "Message":
+        """完成五个字段互斥和约束检查，确保消息对象的有效性"""
         if self.tool_calls and self.role != "assistant":
             raise ValueError("Only assistant messages can contain tool calls")
         ids = [call.id for call in self.tool_calls]
@@ -39,7 +42,7 @@ class Message(BaseModel):
         return self
 
     def to_wire(self) -> dict[str, Any]:
-        """Return a dict suitable for sending to the model provider, with tool calls flattened."""
+        """将消息对象转换为发送请求时的字典格式，符合 OpenAI 库的要求"""
         data: dict[str, Any] = {"role": self.role, "content": self.content}
         if self.tool_calls:
             data["tool_calls"] = [
@@ -52,7 +55,6 @@ class Message(BaseModel):
             ]
         if self.tool_call_id is not None:
             data["tool_call_id"] = self.tool_call_id
-        # Some compatible providers require this on tool-use continuation requests.
         if self.reasoning_content is not None:
             data["reasoning_content"] = self.reasoning_content
         return data
@@ -60,6 +62,7 @@ class Message(BaseModel):
 
 @dataclass(frozen=True)
 class ModelResponse:
+    """模型响应对象，表示模型**响应**的完整结果信息"""
     message: Message
     finish_reason: str
     usage: dict[str, Any] = field(default_factory=dict)

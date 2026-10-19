@@ -1,4 +1,4 @@
-"""The whole agent loop: request, observe, act, repeat."""
+"""agent.py - Agent 对象，维护 Agent 的 Step 循环"""
 
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -11,6 +11,7 @@ from xsh.tools.base import ToolRegistry
 
 @dataclass(frozen=True)
 class TurnResult:
+    """单轮运行结果，储存这轮运行的所有信息"""
     status: str
     steps: int
     text: str = ""
@@ -18,6 +19,8 @@ class TurnResult:
 
 
 class Agent:
+    """Agent 对象，维护 Agent 的 Step 循环"""
+
     def __init__(
         self,
         model: Model,
@@ -40,17 +43,17 @@ class Agent:
 
         step = 0
         try:
-            self.session.repair_pending()  # failed tool calls will receive an error message result
-            self.session.append(Message(role="user", content=prompt))
+            self.session.repair_pending()  # 失败的工具调用会直接收到错误报告字符串作为结果
+            self.session.append(Message(role="user", content=prompt))  # 添加用户输入到会话中
 
-            # agent step loop
+            # ※ Agent Step 循环
             for step in range(1, self.max_steps + 1):
-                # prepare model request
+                # 准备模型请求参数，取出会话消息和工具列表
                 request = self.model.build_request(self.session.messages, self.tools.schemas())
                 self.session.record("request", {"step": step, "body": request})
                 self.report("step", str(step))
 
-                # request model completion
+                # 请求模型得到响应
                 self.report("assistant_start", "")
                 try:
                     response = self.model.complete(request, on_text=lambda text: self.report("assistant_delta", text))
@@ -66,30 +69,29 @@ class Agent:
                 )
                 message = response.message
 
-                # only a complete response may authorize tool execution.
+                # 检查结束原因，若异常结束则丢弃不可靠的工具调用
                 if response.finish_reason not in {"stop", "tool_calls"}:
                     message = message.model_copy(update={"tool_calls": []})
 
+                # 储存模型响应到会话中
                 self.session.append(message)
 
-                # report assistant and tool results to the user
-
-                # if the model did not stop or request tool calls, the turn is complete.
+                # 检查结束原因，若异常结束则该 Turn 直接结束
                 if response.finish_reason not in {"stop", "tool_calls"}:
                     return self._finish(
                         TurnResult(
-                            "max_tokens" if response.finish_reason == "length" else "stopped",
-                            step,
-                            message.content or "",
-                            response.finish_reason,
+                            status="max_tokens" if response.finish_reason == "length" else "stopped",
+                            steps=step,
+                            message=message.content or "",
+                            finish_reason=response.finish_reason,
                         )
                     )
 
-                # model requested tool calls but did not provide any; the turn is complete.
+                # 如果没有工具调用，则该 Turn 结束
                 if not message.tool_calls:
                     return self._finish(TurnResult("completed", step, message.content or ""))
 
-                # execute tool calls and record results
+                # 如果有工具调用，则依次执行工具调用
                 for call in message.tool_calls:
                     self.report("tool", call.name)
                     self.session.start_tool(call)
@@ -97,7 +99,7 @@ class Agent:
                     self.session.append(result)
                     self.report("tool_result", result.content or "")
 
-            # step limit exceeded; the turn is complete but the model may not have finished.
+            # 循环跑完了，说明 Step 超限，该 Turn 可能未完成，但必须结束
             return self._finish(
                 TurnResult(
                     "step_limit",

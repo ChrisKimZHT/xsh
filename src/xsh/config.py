@@ -1,4 +1,4 @@
-"""Small, explicit configuration. Secrets never become part of a model request."""
+"""config.py - 配置类"""
 
 import os
 from urllib.parse import urlsplit
