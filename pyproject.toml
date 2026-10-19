@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xsh-agent"
+version = "0.1.0"
+description = "A small Python agent harness for learning from DeepSeek Harness"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["openai>=2.38,<3", "pydantic>=2.11,<3", "python-dotenv>=1,<2"]
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "ruff>=0.11,<1"]
+
+[project.scripts]
+xsh = "xsh.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+xsh = ["prompts/*.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 200
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
