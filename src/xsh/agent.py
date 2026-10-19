@@ -51,7 +51,11 @@ class Agent:
                 self.report("step", str(step))
 
                 # request model completion
-                response = self.model.complete(request)
+                self.report("assistant_start", "")
+                try:
+                    response = self.model.complete(request, on_text=lambda text: self.report("assistant_delta", text))
+                finally:
+                    self.report("assistant_end", "")
                 self.session.record(
                     "response",
                     {
@@ -69,8 +73,6 @@ class Agent:
                 self.session.append(message)
 
                 # report assistant and tool results to the user
-                if message.content:
-                    self.report("assistant", message.content)
 
                 # if the model did not stop or request tool calls, the turn is complete.
                 if response.finish_reason not in {"stop", "tool_calls"}:

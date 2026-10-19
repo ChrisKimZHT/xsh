@@ -1,7 +1,6 @@
 """Composition root: configuration, session, tools, model, then the agent."""
 
 import argparse
-import sys
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
@@ -11,6 +10,7 @@ from openai import OpenAI
 from pydantic import ValidationError
 
 from xsh.agent import Agent
+from xsh.cli_output import CliOutput
 from xsh.config import Settings
 from xsh.model import OpenAIModel
 from xsh.prompt import build_prompt
@@ -45,6 +45,7 @@ def parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     # load configuration
     args = parser().parse_args(argv)
+    output = CliOutput(verbose=args.verbose)
     load_dotenv(Path.cwd() / ".env", override=False)
 
     try:
@@ -53,7 +54,7 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("Workspace must be a directory")
 
         if args.show_prompt:
-            print(build_prompt(workspace, allow_shell=args.allow_shell))
+            output.system_prompt(build_prompt(workspace, allow_shell=args.allow_shell))
             return 0
 
         # override .env values with command-line arguments
@@ -77,22 +78,12 @@ def main(argv: list[str] | None = None) -> int:
             default_path = workspace / ".xsh" / "sessions" / (datetime.now().strftime("%Y%m%d-%H%M%S-") + uuid4().hex[:8] + ".jsonl")
             path = args.session or default_path
             session = Session.create(path, workspace, build_prompt(workspace, allow_shell=args.allow_shell),)
-        print(f"Session: {session.path}", file=sys.stderr)
+        output.session(session.path)
 
         # prepare tool list
         definitions = FileTools(workspace).definitions()
         if args.allow_shell:
             definitions.append(shell_tool(workspace))
-
-        # print function
-        def report(kind: str, text: str) -> None:
-            if kind == "assistant":
-                print(text, flush=True)
-            elif kind == "tool_result":
-                if args.verbose:
-                    print(text, file=sys.stderr)
-            else:
-                print(f"[{kind}: {text}]", file=sys.stderr, flush=True)
 
         # prepare model and agent
         with OpenAI(
@@ -106,14 +97,12 @@ def main(argv: list[str] | None = None) -> int:
                 session=session,
                 tools=ToolRegistry(definitions),
                 max_steps=settings.max_steps,
-                report=report,
+                report=output.report,
             )
 
             def run(prompt: str) -> int:
                 outcome = agent.run(prompt)
-                print(f"[{outcome.status}; steps={outcome.steps}]", file=sys.stderr)
-                if outcome.error:
-                    print(outcome.error, file=sys.stderr)
+                output.outcome(outcome)
                 return (
                     0
                     if outcome.status == "completed"
@@ -127,34 +116,27 @@ def main(argv: list[str] | None = None) -> int:
                 return run(args.prompt)
 
             # interactive mode
-            print(
-                "Enter a task; /history shows messages, /exit quits. Ctrl+C interrupts a turn.",
-                file=sys.stderr,
-            )
+            output.intro()
 
             # agent round loop
             while True:
                 try:
-                    prompt = input("\nxsh> ").strip()
+                    prompt = output.prompt()
                 except (EOFError, KeyboardInterrupt):
-                    print()
+                    output.newline()
                     return 0
                 if prompt in {"/exit", "/quit"}:
                     return 0
                 if prompt == "/history":
-                    for message in session.messages:
-                        if message.role != "system":
-                            print(f"[{message.role}] {message.content or ''}")
-                            for call in message.tool_calls:
-                                print(f"  {call.name}({call.arguments})")
+                    output.history(session.messages)
                 elif prompt:
                     run(prompt)
 
     except ValidationError as error:
         for detail in error.errors(include_input=False, include_url=False):
-            print(f"Configuration: {'.'.join(map(str, detail['loc']))}: {detail['msg']}", file=sys.stderr)
+            output.error(f"Configuration: {'.'.join(map(str, detail['loc']))}: {detail['msg']}")
         return 2
 
     except (OSError, ValueError, KeyError) as error:
-        print(f"xsh: {error}", file=sys.stderr)
+        output.error(f"xsh: {error}")
         return 2
