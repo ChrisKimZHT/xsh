@@ -47,6 +47,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--api-key", help="Provider API key")
     result.add_argument("--max-steps", type=int)
     result.add_argument("--max-tokens", type=int, help="Maximum output tokens per model request")
+    result.add_argument("--context-window", type=int, help="Model context window in tokens (for usage display)")
     result.add_argument("--request-timeout", type=float, help="API request timeout in seconds")
     result.add_argument("--max-retries", type=int, help="Maximum API request retries")
     return result
@@ -73,11 +74,13 @@ def main(argv: list[str] | None = None) -> int:
             api_key=args.api_key,
             max_steps=args.max_steps,
             max_tokens=args.max_tokens,
+            context_window=args.context_window,
             request_timeout=args.request_timeout,
             max_retries=args.max_retries,
         )
 
         # 准备会话，恢复或创建
+        terminal.context_window = settings.context_window
         if args.resume:
             session = Session.load(args.resume)
             if args.workspace and workspace != session.workspace:

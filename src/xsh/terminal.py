@@ -24,6 +24,7 @@ class Terminal:
         self.console = console or Console()
         self.errors = error_console or Console(stderr=True)
         self.verbose = verbose
+        self.context_window: int | None = None
         self._live: Live | None = None  # Live 对象，用于在终端中动态刷新模型输出
         self._text = ""  # 缓存拼接后的模型输出文本
         self._reasoning = False
@@ -165,6 +166,23 @@ class Terminal:
         if self._turn_elapsed is not None:
             summary.append(f" | {self._turn_elapsed:.3f}s", style="dim")
             self._turn_elapsed = None
+        if result.usage:
+            values = ", ".join(
+                f"{label} {result.usage[key]}" if key in result.usage else f"{label} unavailable"
+                for label, key in (("in", "prompt_tokens"), ("out", "completion_tokens"), ("sum", "total_tokens"))
+            )
+            summary.append(f"\nUsage: {values}" + (" (partial)" if result.usage_partial else ""), style="dim")
+        else:
+            summary.append("\nUsage: unavailable", style="dim")
+        if result.context_tokens is None:
+            summary.append("\nContext: unavailable", style="dim")
+        elif self.context_window is None:
+            summary.append(f"\nContext: {result.context_tokens} tokens", style="dim")
+        else:
+            summary.append(
+                f"\nContext: {result.context_tokens} / {self.context_window} tokens ({result.context_tokens / self.context_window:.1%})",
+                style="dim",
+            )
         if result.error:
             summary.append("\n\n")
             summary.append(result.error, style="red")

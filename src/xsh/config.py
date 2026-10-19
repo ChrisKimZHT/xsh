@@ -20,6 +20,7 @@ class Settings(BaseModel):
     api_key: SecretStr
     max_steps: int = Field(default=CONFIG_DEFAULT_MAX_STEPS, ge=1)
     max_tokens: int = Field(default=CONFIG_DEFAULT_MAX_TOKENS, ge=1)
+    context_window: int | None = Field(default=None, ge=1)
     request_timeout: float = Field(default=CONFIG_DEFAULT_REQUEST_TIMEOUT, gt=0)
     max_retries: int = Field(default=CONFIG_DEFAULT_MAX_RETRIES, ge=0, le=CONFIG_MAX_RETRIES)
 

@@ -1,7 +1,7 @@
 """agent.py - Agent 对象，维护 Agent 的 Step 循环"""
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 
 from xsh.constants import (
     AGENT_DEFAULT_MAX_STEPS,
@@ -19,6 +19,9 @@ class TurnResult:
     steps: int
     text: str = ""
     error: str = ""
+    usage: dict[str, int] = field(default_factory=dict)
+    usage_partial: bool = False
+    context_tokens: int | None = None
 
 
 class Agent:
@@ -45,6 +48,13 @@ class Agent:
             raise ValueError("Prompt must not be empty")
 
         step = 0
+        usage: dict[str, int] = {}
+        usage_partial = False
+        context_tokens = None
+
+        def finish(result: TurnResult) -> TurnResult:
+            return self._finish(replace(result, usage=usage.copy(), usage_partial=usage_partial, context_tokens=context_tokens))
+
         try:
             self.report("turn_start", "")
             self.session.repair_pending()  # 为未收到结果的工具调用补写错误结果，不重新执行
@@ -61,14 +71,27 @@ class Agent:
 
                 # 请求模型得到响应
                 self.report("assistant_start", "")
+                context_tokens = None
                 try:
                     response = self.model.complete(
                         request,
                         on_text=lambda text: self.report("assistant_delta", text),
                         on_reasoning=lambda text: self.report("assistant_reasoning_delta", text),
                     )
+                except BaseException:
+                    usage_partial = True
+                    raise
                 finally:
                     self.report("assistant_end", "")
+                # Usage 累计整轮请求，Context 只取最后一次请求的输入量。
+                for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
+                    value = response.usage.get(key)
+                    if type(value) is int and value >= 0:
+                        usage[key] = usage.get(key, 0) + value
+                        if key == "prompt_tokens":
+                            context_tokens = value
+                    else:
+                        usage_partial = True
                 self.session.record(
                     "response",
                     {
@@ -88,7 +111,7 @@ class Agent:
 
                 # 检查结束原因，若异常结束则该 Turn 直接结束
                 if response.finish_reason not in {"stop", "tool_calls"}:
-                    return self._finish(
+                    return finish(
                         TurnResult(
                             status="max_tokens" if response.finish_reason == "length" else "stopped",
                             steps=step,
@@ -98,7 +121,7 @@ class Agent:
 
                 # 如果没有工具调用，则该 Turn 结束
                 if not message.tool_calls:
-                    return self._finish(TurnResult("completed", step, message.content or ""))
+                    return finish(TurnResult("completed", step, message.content or ""))
 
                 # 如果有工具调用，则依次执行工具调用
                 for call in message.tool_calls:
@@ -110,7 +133,7 @@ class Agent:
                     self.report("tool_result", result.content or "")
 
             # 循环跑完了，说明 Step 超限，该 Turn 可能未完成，但必须结束
-            return self._finish(
+            return finish(
                 TurnResult(
                     "step_limit",
                     step,
@@ -120,11 +143,11 @@ class Agent:
 
         except KeyboardInterrupt:
             self.session.repair_pending()
-            return self._finish(TurnResult("cancelled", step, error="Interrupted by user."))
+            return finish(TurnResult("cancelled", step, error="Interrupted by user."))
 
         except Exception as error:
             self.session.repair_pending()
-            return self._finish(TurnResult("error", step, error=f"{type(error).__name__}: {error}"))
+            return finish(TurnResult("error", step, error=f"{type(error).__name__}: {error}"))
 
     def _finish(self, result: TurnResult) -> TurnResult:
         # 无论正常结束还是中断、异常，都停止工具状态刷新，避免影响后续终端输出。
@@ -135,6 +158,9 @@ class Agent:
                 "status": result.status,
                 "steps": result.steps,
                 "error": result.error,
+                "usage": result.usage,
+                "usage_partial": result.usage_partial,
+                "context_tokens": result.context_tokens,
             },
         )
         return result
