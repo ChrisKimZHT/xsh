@@ -134,7 +134,7 @@ class Terminal:
             )
 
         elif kind == "tool":  # 模型调用工具
-            # 压平名称中的换行和多余空白，保证状态始终占一行。
+            # 将工具名称中的连续空白（包括换行）压缩为单个空格。
             self._tool_name = " ".join(text.split())
             self._tool_started_at = None
             self._tool_status("Pending")

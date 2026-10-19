@@ -14,7 +14,7 @@ from xsh.tools.base import ToolRegistry
 
 @dataclass(frozen=True)
 class TurnResult:
-    """单轮运行结果，储存这轮运行的所有信息"""
+    """单轮运行结果摘要，包含状态、步数、输出文本和错误信息"""
     status: str
     steps: int
     text: str = ""
@@ -47,7 +47,7 @@ class Agent:
         step = 0
         try:
             self.report("turn_start", "")
-            self.session.repair_pending()  # 失败的工具调用会直接收到错误报告字符串作为结果
+            self.session.repair_pending()  # 为未收到结果的工具调用补写错误结果，不重新执行
             self.session.append(Message(role="user", content=prompt))  # 添加用户输入到会话中
             # 每条用户消息对应一个 Turn，从会话历史计数以支持恢复后继续编号。
             turn = sum(message.role == "user" for message in self.session.messages)
@@ -92,8 +92,7 @@ class Agent:
                         TurnResult(
                             status="max_tokens" if response.finish_reason == "length" else "stopped",
                             steps=step,
-                            message=message.content or "",
-                            finish_reason=response.finish_reason,
+                            text=message.content or "",
                         )
                     )
 

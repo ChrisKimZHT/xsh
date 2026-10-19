@@ -19,7 +19,7 @@ class ToolArgs(BaseModel):
 
 @dataclass
 class Tool:
-    """工具基类，所有工具都应继承自此类"""
+    """工具定义，封装名称、描述、参数类型和执行函数"""
     name: str
     description: str
     parameters: type[ToolArgs]

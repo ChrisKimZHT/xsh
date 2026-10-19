@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ToolCall(BaseModel):
-    """工具调用对象，表示模型**请求**中包含的工具调用信息"""
+    """模型发出的工具调用请求，来自模型响应，也会随历史消息回传"""
     model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
 
     id: str = Field(min_length=1)
@@ -27,7 +27,7 @@ class Message(BaseModel):
 
     @model_validator(mode="after")
     def check_shape(self) -> "Message":
-        """完成五个字段互斥和约束检查，确保消息对象的有效性"""
+        """检查消息字段间的约束及工具调用 ID 的唯一性"""
         if self.tool_calls and self.role != "assistant":
             raise ValueError("Only assistant messages can contain tool calls")
         ids = [call.id for call in self.tool_calls]

@@ -47,7 +47,7 @@ class OpenAIModel:
         content: list[str] = []                # 正常文本结果
         refusals: list[str] = []               # 拒绝文本结果
         reasoning: list[str] = []              # 推理文本结果
-        calls: dict[int, dict[str, str]] = {}  # 工具调用结果
+        calls: dict[int, dict[str, str]] = {}  # 按索引累积工具调用信息
         finish_reason = None                   # 结束原因
         usage = {}
         # 注意：OpenAI 库自带请求重试
