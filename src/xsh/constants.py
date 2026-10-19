@@ -1,0 +1,63 @@
+"""constants.py - 集中管理运行参数与固定文本"""
+
+# config.py
+CONFIG_DEFAULT_MAX_STEPS = 100
+CONFIG_DEFAULT_MAX_TOKENS = 65536
+CONFIG_DEFAULT_REQUEST_TIMEOUT = 600
+CONFIG_DEFAULT_MAX_RETRIES = 2
+CONFIG_MAX_RETRIES = 10
+
+# agent.py
+AGENT_DEFAULT_MAX_STEPS = 100
+
+# model.py
+MODEL_DEFAULT_MAX_TOKENS = 65536
+
+# cli_output.py
+CLI_OUTPUT_REFRESH_PER_SECOND = 10
+CLI_OUTPUT_INTRO = "Enter a task; /history shows messages, /exit quits. Ctrl+C interrupts a turn."
+CLI_OUTPUT_PROMPT = "\n[bold cyan]xsh> [/]"
+
+# cli.py
+CLI_ENV_FILE = ".env"
+CLI_SESSION_DIRECTORY = ".xsh/sessions"
+CLI_SESSION_TIMESTAMP_FORMAT = "%Y%m%d-%H%M%S-"
+CLI_SESSION_ID_LENGTH = 8
+CLI_SESSION_SUFFIX = ".jsonl"
+CLI_EXIT_COMMANDS = {"/exit", "/quit"}
+CLI_HISTORY_COMMANDS = {"/history"}
+CLI_INTERRUPT_EXIT_CODE = 130
+
+# prompt.py
+PROMPT_RESOURCE_PATH = "prompts/system.md"
+PROMPT_INSTRUCTIONS_FILE = "AGENTS.md"
+PROMPT_SHELL_INSTRUCTIONS = (
+    "\nThe shell tool runs foreground commands in the workspace. It has no persistent "
+    "terminal or background job support. Use it for tests and build commands. "
+    "Inspect non-zero exit codes and timeouts before moving on.\n"
+)
+PROMPT_MAX_INSTRUCTIONS_BYTES = 128000
+
+# session.py
+SESSION_FORMAT_VERSION = 1
+
+# tools/base.py
+BASE_OUTPUT_LIMIT = 64000
+BASE_TRUNCATION_MARKER = "\n[Output truncated; request a smaller range or narrower search.]"
+
+# tools/files.py
+FILES_MAX_FILE_BYTES = 10 * 1024 * 1024
+FILES_SKIP_DIRS = frozenset({".git", ".xsh", ".venv", ".conda", "node_modules", "__pycache__"})
+FILES_DEFAULT_READ_LIMIT = 500
+FILES_MAX_READ_LIMIT = 2000
+FILES_DEFAULT_GLOB = "*"
+FILES_RESERVED_DIRECTORY = ".xsh"
+FILES_SCAN_LIMIT = 100000
+FILES_RESULT_LIMIT = 1000
+
+# tools/shell.py
+SHELL_DEFAULT_TIMEOUT_SECONDS = 120
+SHELL_MAX_TIMEOUT_SECONDS = 600
+SHELL_MAX_OUTPUT_BYTES = 256000
+SHELL_TRUNCATION_MARKER = "\n[Output truncated; rerun with a narrower command or redirect to a file.]"
+SHELL_TIMEOUT_MARKER = " [timed out; inspect state before retrying commands with side effects]"

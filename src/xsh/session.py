@@ -5,6 +5,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from xsh.constants import (
+    SESSION_FORMAT_VERSION,
+)
 from xsh.messages import Message, ToolCall
 
 
@@ -27,7 +30,7 @@ class Session:
             pass  # 使用 x 模式，防止覆盖已有会话。
 
         session = cls(path, workspace)
-        session.record("session", {"version": 1, "workspace": str(session.workspace)})  # 写入会话头
+        session.record("session", {"version": SESSION_FORMAT_VERSION, "workspace": str(session.workspace)})  # 写入会话头
         session.append(Message(role="system", content=system_prompt))  # 写入系统提示
         return session
 
@@ -43,7 +46,7 @@ class Session:
         if not events or events[0].get("type") != "session":
             raise ValueError("Missing session header")
         header = events[0]["data"]
-        if header["version"] != 1:
+        if header["version"] != SESSION_FORMAT_VERSION:
             raise ValueError("Unsupported session version")
 
         # 创建会话对象

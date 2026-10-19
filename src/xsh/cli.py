@@ -12,6 +12,16 @@ from pydantic import ValidationError
 from xsh.agent import Agent
 from xsh.cli_output import CliOutput
 from xsh.config import Settings
+from xsh.constants import (
+    CLI_ENV_FILE,
+    CLI_EXIT_COMMANDS,
+    CLI_HISTORY_COMMANDS,
+    CLI_INTERRUPT_EXIT_CODE,
+    CLI_SESSION_DIRECTORY,
+    CLI_SESSION_ID_LENGTH,
+    CLI_SESSION_SUFFIX,
+    CLI_SESSION_TIMESTAMP_FORMAT,
+)
 from xsh.model import OpenAIModel
 from xsh.prompt import build_prompt
 from xsh.session import Session
@@ -44,7 +54,7 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
-    load_dotenv(Path.cwd() / ".env", override=False)
+    load_dotenv(Path.cwd() / CLI_ENV_FILE, override=False)
     output = CliOutput(verbose=args.verbose)
 
     try:
@@ -74,7 +84,7 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError("Resumed session belongs to a different workspace")
             workspace = session.workspace
         else:
-            default_path = workspace / ".xsh" / "sessions" / (datetime.now().strftime("%Y%m%d-%H%M%S-") + uuid4().hex[:8] + ".jsonl")
+            default_path = workspace / Path(CLI_SESSION_DIRECTORY) / (datetime.now().strftime(CLI_SESSION_TIMESTAMP_FORMAT) + uuid4().hex[:CLI_SESSION_ID_LENGTH] + CLI_SESSION_SUFFIX)
             path = args.session or default_path
             session = Session.create(path, workspace, build_prompt(workspace, allow_shell=args.allow_shell),)
         output.session(session.path)
@@ -107,7 +117,7 @@ def main(argv: list[str] | None = None) -> int:
                 if outcome.status == "completed":
                     return 0
                 elif outcome.status == "cancelled":
-                    return 130
+                    return CLI_INTERRUPT_EXIT_CODE
                 else:
                     return 1
 
@@ -123,9 +133,9 @@ def main(argv: list[str] | None = None) -> int:
                 except (EOFError, KeyboardInterrupt):
                     output.newline()
                     return 0
-                if prompt in {"/exit", "/quit"}:
+                if prompt in CLI_EXIT_COMMANDS:
                     return 0
-                elif prompt in {"/history"}:
+                elif prompt in CLI_HISTORY_COMMANDS:
                     output.history(session.messages)
                 elif prompt:
                     run(prompt)  # 运行 Agent

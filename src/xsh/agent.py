@@ -3,6 +3,9 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from xsh.constants import (
+    AGENT_DEFAULT_MAX_STEPS,
+)
 from xsh.messages import Message
 from xsh.model import Model
 from xsh.session import Session
@@ -26,7 +29,7 @@ class Agent:
         model: Model,
         session: Session,
         tools: ToolRegistry,
-        max_steps: int = 100,
+        max_steps: int = AGENT_DEFAULT_MAX_STEPS,
         report: Callable[[str, str], None] | None = None,
     ):
         if max_steps < 1:

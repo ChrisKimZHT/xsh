@@ -5,15 +5,23 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, Field, SecretStr, field_validator
 
+from xsh.constants import (
+    CONFIG_DEFAULT_MAX_RETRIES,
+    CONFIG_DEFAULT_MAX_STEPS,
+    CONFIG_DEFAULT_MAX_TOKENS,
+    CONFIG_DEFAULT_REQUEST_TIMEOUT,
+    CONFIG_MAX_RETRIES,
+)
+
 
 class Settings(BaseModel):
     base_url: str = Field(min_length=1)
     model: str = Field(min_length=1)
     api_key: SecretStr
-    max_steps: int = Field(default=100, ge=1)
-    max_tokens: int = Field(default=65536, ge=1)
-    request_timeout: float = Field(default=600, gt=0)
-    max_retries: int = Field(default=2, ge=0, le=10)
+    max_steps: int = Field(default=CONFIG_DEFAULT_MAX_STEPS, ge=1)
+    max_tokens: int = Field(default=CONFIG_DEFAULT_MAX_TOKENS, ge=1)
+    request_timeout: float = Field(default=CONFIG_DEFAULT_REQUEST_TIMEOUT, gt=0)
+    max_retries: int = Field(default=CONFIG_DEFAULT_MAX_RETRIES, ge=0, le=CONFIG_MAX_RETRIES)
 
     @field_validator("base_url")
     @classmethod

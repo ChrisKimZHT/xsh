@@ -8,16 +8,23 @@ from pathlib import Path
 
 from pydantic import Field
 
+from xsh.constants import (
+    FILES_DEFAULT_GLOB,
+    FILES_DEFAULT_READ_LIMIT,
+    FILES_MAX_FILE_BYTES,
+    FILES_MAX_READ_LIMIT,
+    FILES_RESERVED_DIRECTORY,
+    FILES_RESULT_LIMIT,
+    FILES_SCAN_LIMIT,
+    FILES_SKIP_DIRS,
+)
 from xsh.tools.base import Tool, ToolArgs, bounded
-
-MAX_FILE_BYTES = 10 * 1024 * 1024
-SKIP_DIRS = {".git", ".xsh", ".venv", ".conda", "node_modules", "__pycache__"}
 
 
 class ReadArgs(ToolArgs):
     file_path: str = Field(min_length=1, description="Path relative to the workspace or absolute.")
     offset: int = Field(default=1, ge=1, description="1-based first line.")
-    limit: int = Field(default=500, ge=1, le=2000)
+    limit: int = Field(default=FILES_DEFAULT_READ_LIMIT, ge=1, le=FILES_MAX_READ_LIMIT)
 
 
 class WriteArgs(ToolArgs):
@@ -35,14 +42,14 @@ class EditArgs(ToolArgs):
 
 
 class GlobArgs(ToolArgs):
-    pattern: str = Field(default="*", min_length=1, description="Relative glob, e.g. **/*.py.")
+    pattern: str = Field(default=FILES_DEFAULT_GLOB, min_length=1, description="Relative glob, e.g. **/*.py.")
 
 
 class GrepArgs(ToolArgs):
     pattern: str = Field(
         min_length=1, description="Literal text to find; NOT a regular expression."
     )
-    glob: str = Field(default="*", min_length=1)
+    glob: str = Field(default=FILES_DEFAULT_GLOB, min_length=1)
 
 
 class FileTools:
@@ -59,7 +66,7 @@ class FileTools:
         if not path.is_relative_to(self.workspace):
             raise ValueError("Path is outside the workspace")
         relative = path.relative_to(self.workspace)
-        if any(part.casefold() == ".xsh" for part in relative.parts):
+        if any(part.casefold() == FILES_RESERVED_DIRECTORY for part in relative.parts):
             raise ValueError(".xsh is reserved for harness session records")
         # Disallow Windows alternate data streams (drive colon is outside relative.parts).
         if os.name == "nt" and any(":" in part for part in relative.parts):
@@ -70,9 +77,9 @@ class FileTools:
         if not path.is_file():
             raise ValueError("Expected an existing regular file")
         with path.open("rb") as file:
-            data = file.read(MAX_FILE_BYTES + 1)
-        if len(data) > MAX_FILE_BYTES:
-            raise ValueError(f"File exceeds the {MAX_FILE_BYTES}-byte limit")
+            data = file.read(FILES_MAX_FILE_BYTES + 1)
+        if len(data) > FILES_MAX_FILE_BYTES:
+            raise ValueError(f"File exceeds the {FILES_MAX_FILE_BYTES}-byte limit")
         if b"\0" in data:
             raise ValueError("Binary files are not supported")
         return data
@@ -101,8 +108,8 @@ class FileTools:
 
     def _save(self, path: Path, text: str) -> None:
         data = text.encode("utf-8")
-        if len(data) > MAX_FILE_BYTES:
-            raise ValueError(f"Output exceeds {MAX_FILE_BYTES} bytes")
+        if len(data) > FILES_MAX_FILE_BYTES:
+            raise ValueError(f"Output exceeds {FILES_MAX_FILE_BYTES} bytes")
         path.parent.mkdir(parents=True, exist_ok=True)
         # Replace atomically so an interrupted write does not leave a half-written target.
         with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as file:
@@ -146,15 +153,15 @@ class FileTools:
             dirs[:] = sorted(
                 d
                 for d in dirs
-                if d not in SKIP_DIRS
+                if d not in FILES_SKIP_DIRS
                 and not (Path(directory) / d).is_symlink()
                 and not (Path(directory) / d).is_junction()
             )
             for name in sorted(files):
                 visited += 1
-                if visited > 100000:
+                if visited > FILES_SCAN_LIMIT:
                     raise ValueError(
-                        "Scan limit reached (100000 files); use a smaller workspace"
+                        f"Scan limit reached ({FILES_SCAN_LIMIT} files); use a smaller workspace"
                     )
                 path = Path(directory) / name
                 relative = path.relative_to(self.workspace)
@@ -174,7 +181,7 @@ class FileTools:
         matches = []
         for _, name in self._paths(args.pattern):
             matches.append(name)
-            if len(matches) == 1000:
+            if len(matches) == FILES_RESULT_LIMIT:
                 return bounded(
                     "\n".join(matches) + "\n[Result limit reached; narrow the pattern.]"
                 )
@@ -192,7 +199,7 @@ class FileTools:
             for number, line in enumerate(lines, 1):
                 if args.pattern in line:
                     matches.append(f"{name}:{number}: {line}")
-                    if len(matches) == 1000:
+                    if len(matches) == FILES_RESULT_LIMIT:
                         return bounded(
                             "\n".join(matches) + "\n[Match limit reached; narrow the search.]"
                         )
@@ -221,13 +228,13 @@ class FileTools:
             ),
             Tool(
                 "glob",
-                "Find workspace file paths by glob. Returns at most 1000 paths.",
+                f"Find workspace file paths by glob. Returns at most {FILES_RESULT_LIMIT} paths.",
                 GlobArgs,
                 self.glob,
             ),
             Tool(
                 "grep",
-                "Search UTF-8 files for literal text. Returns at most 1000 matching lines.",
+                f"Search UTF-8 files for literal text. Returns at most {FILES_RESULT_LIMIT} matching lines.",
                 GrepArgs,
                 self.grep,
             ),

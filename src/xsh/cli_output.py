@@ -7,6 +7,11 @@ from rich.panel import Panel
 from rich.text import Text
 
 from xsh.agent import TurnResult
+from xsh.constants import (
+    CLI_OUTPUT_INTRO,
+    CLI_OUTPUT_PROMPT,
+    CLI_OUTPUT_REFRESH_PER_SECOND,
+)
 from xsh.messages import Message
 
 
@@ -25,7 +30,7 @@ class CliOutput:
             self._text += text
             if self.console.is_terminal:
                 if self._live is None:
-                    self._live = Live(console=self.console, refresh_per_second=10, transient=True)
+                    self._live = Live(console=self.console, refresh_per_second=CLI_OUTPUT_REFRESH_PER_SECOND, transient=True)
                     self._live.start()
                 self._live.update(Markdown(self._text))
             else:
@@ -62,10 +67,10 @@ class CliOutput:
         self.errors.print(Text(text, style="red"))
 
     def intro(self) -> None:
-        self.errors.print(Panel("Enter a task; /history shows messages, /exit quits. Ctrl+C interrupts a turn.", title="xsh", border_style="cyan"))
+        self.errors.print(Panel(CLI_OUTPUT_INTRO, title="xsh", border_style="cyan"))
 
     def prompt(self) -> str:
-        return self.console.input("\n[bold cyan]xsh> [/]").strip()
+        return self.console.input(CLI_OUTPUT_PROMPT).strip()
 
     def newline(self) -> None:
         self.console.print()
