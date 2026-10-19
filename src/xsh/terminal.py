@@ -1,5 +1,7 @@
 """terminal.py - 负责终端的输入和输出"""
 
+from time import perf_counter
+
 from rich.console import Console
 from rich.live import Live
 from rich.markdown import Markdown
@@ -27,13 +29,19 @@ class Terminal:
         self._reasoning = False
         self._tool_live: Live | None = None  # 独立维护工具状态行，避免与模型输出的 Live 混用
         self._tool_name = ""  # 当前工具名称，供后续状态更新复用
+        self._tool_started_at: float | None = None
+        self._turn_started_at: float | None = None
+        self._turn_elapsed: float | None = None
 
     def _tool_status(self, status: str, result_chars: int | None = None) -> None:
         """原地刷新工具状态面板；管道输出只保留完成状态。"""
-        style = {"Pending": "yellow", "Running": "cyan", "Completed": "green"}[status]
+        style = {"Pending": "yellow", "Running": "cyan", "Completed": "green", "Interrupted": "yellow"}[status]
         text = Text(status, style=f"bold {style}")
         if result_chars is not None:
             text.append(f" | {result_chars} chars", style="dim")
+        finished = status in {"Completed", "Interrupted"}
+        if finished and self._tool_started_at is not None:
+            text.append(f" | {perf_counter() - self._tool_started_at:.3f}s", style="dim")
         panel = Panel(text, title=Text(f"Tool {self._tool_name}"), title_align="left", border_style=style, expand=False)
         if self.errors.is_terminal:
             if self._tool_live is None:
@@ -42,7 +50,7 @@ class Terminal:
                 self._tool_live.start(refresh=True)
             else:
                 self._tool_live.update(panel, refresh=True)
-        elif result_chars is not None:  # 管道不支持原地刷新，只输出最终结果面板。
+        elif finished:  # 管道不支持原地刷新，只输出最终结果面板。
             self.errors.print(panel)
 
     def _stop_tool(self) -> None:
@@ -64,7 +72,11 @@ class Terminal:
 
     def report(self, kind: str, text: str) -> None:
         """报告事件，以打印到终端"""
-        if kind == "assistant_start":  # 模型开始输出
+        if kind == "turn_start":  # Turn 开始
+            self._turn_started_at = perf_counter()
+            self._turn_elapsed = None
+
+        elif kind == "assistant_start":  # 模型开始输出
             self._text = ""
             self._reasoning = False
 
@@ -106,6 +118,7 @@ class Terminal:
             # 按实际返回文本统计字符数，先刷新完成状态，再结束实时显示。
             self._tool_status("Completed", result_chars=len(text))
             self._stop_tool()
+            self._tool_started_at = None
             if self.verbose:
                 self.errors.print(Panel(Text(text), title="Tool result", border_style="dim"))
 
@@ -123,13 +136,21 @@ class Terminal:
         elif kind == "tool":  # 模型调用工具
             # 压平名称中的换行和多余空白，保证状态始终占一行。
             self._tool_name = " ".join(text.split())
+            self._tool_started_at = None
             self._tool_status("Pending")
 
         elif kind == "tool_start":  # 工具即将执行，原地更新为运行状态
+            self._tool_started_at = perf_counter()
             self._tool_status("Running")
 
         elif kind == "tool_end":  # Turn 结束时兜底清理，包括工具执行中断或异常的情况
+            if self._turn_started_at is not None:
+                self._turn_elapsed = perf_counter() - self._turn_started_at
+                self._turn_started_at = None
+            if self._tool_started_at is not None:
+                self._tool_status("Interrupted")
             self._stop_tool()
+            self._tool_started_at = None
 
     def session(self, path: object) -> None:
         """打印会话路径"""
@@ -141,6 +162,9 @@ class Terminal:
         status = result.status.replace("_", " ").capitalize()
         summary = Text(status, style=f"bold {style}")
         summary.append(f" | {result.steps} {'step' if result.steps == 1 else 'steps'}", style="dim")
+        if self._turn_elapsed is not None:
+            summary.append(f" | {self._turn_elapsed:.3f}s", style="dim")
+            self._turn_elapsed = None
         if result.error:
             summary.append("\n\n")
             summary.append(result.error, style="red")

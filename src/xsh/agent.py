@@ -46,6 +46,7 @@ class Agent:
 
         step = 0
         try:
+            self.report("turn_start", "")
             self.session.repair_pending()  # 失败的工具调用会直接收到错误报告字符串作为结果
             self.session.append(Message(role="user", content=prompt))  # 添加用户输入到会话中
             # 每条用户消息对应一个 Turn，从会话历史计数以支持恢复后继续编号。
