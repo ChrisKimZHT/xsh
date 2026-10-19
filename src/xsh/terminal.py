@@ -29,6 +29,11 @@ class Terminal:
     def _render_text(self):
         """将模型的 思维+输出 渲染为 灰色文本思维块 + Markdown输出块"""
         if self._reasoning:
+            if not self.verbose:
+                text = Text(self._text.replace("\r\n", " ").replace("\n", " ").replace("\r", " "), style="dim")
+                # Panel 左右边框和默认内边距各占两个字符。
+                lines = text.wrap(self.console, max(1, self.console.width - 4))
+                return Panel(lines[-1] if lines else Text(""), title="Thinking", border_style="dim")
             return Panel(Text(self._text, style="dim"), title="Thinking", border_style="dim")
         return Markdown(self._text)
 
@@ -64,7 +69,10 @@ class Terminal:
             if self._live is not None:
                 self._live.stop()
                 self._live = None
-                self.console.print(self._render_text())  # Live 设置了 transient=True，停止后会清空终端输出，所以这里需要重新打印模型的完整输出
+                # Live 设置了 transient=True，停止后会清空终端输出，所以这里需要重新打印模型的完整输出
+                # 简洁模式的思维仅供实时预览，结束时会消失，不会再打印一次
+                if not self._reasoning or self.verbose:
+                    self.console.print(self._render_text())
             elif self._text:
                 self.console.print()
             self._text = ""
