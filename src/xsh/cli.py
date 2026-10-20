@@ -88,10 +88,14 @@ def main(argv: list[str] | None = None) -> int:
             if args.workspace and workspace != session.workspace:
                 raise ValueError("Resumed session belongs to a different workspace")
             workspace = session.workspace
+            # 模型在重启后可能已更换，重新渲染系统提示词
+            system_prompt = build_prompt(workspace, model=settings.model, allow_shell=args.allow_shell)
+            session.update_system_prompt(system_prompt)
         else:
             default_path = workspace / Path(CLI_SESSION_DIRECTORY) / (datetime.now().strftime(CLI_SESSION_TIMESTAMP_FORMAT) + uuid4().hex[:CLI_SESSION_ID_LENGTH] + CLI_SESSION_SUFFIX)
             path = args.session or default_path
-            session = Session.create(path, workspace, build_prompt(workspace, allow_shell=args.allow_shell),)
+            system_prompt = build_prompt(workspace, model=settings.model, allow_shell=args.allow_shell)
+            session = Session.create(path, workspace, system_prompt)
         terminal.session(session.path)
         terminal.system_prompt(session.messages[0].content or "")
 

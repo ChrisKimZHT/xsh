@@ -11,9 +11,10 @@ from xsh.constants import (
 )
 
 
-def build_prompt(workspace: Path, *, allow_shell: bool = False) -> str:
+def build_prompt(workspace: Path, *, model: str, allow_shell: bool = False) -> str:
     # 内置系统提示词
     prompt = files("xsh").joinpath(PROMPT_RESOURCE_PATH).read_text(encoding="utf-8")
+    prompt = prompt.replace("{{model}}", model)  # 渲染系统提示词的模型名称
     # 指定工作目录
     prompt += f"\n\nWorkspace: {workspace.resolve()}\n"
     if allow_shell:

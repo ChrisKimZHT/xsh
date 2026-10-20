@@ -56,6 +56,10 @@ class Session:
         for event in events[1:]:
             if event["type"] == "message":
                 session._accept(Message.model_validate(event["data"]))
+            elif event["type"] == "system_prompt":  # 如果在 1: 后找到系统提示词事件，则是更新了系统提示词，替换旧的系统消息
+                if not session.messages or session.messages[0].role != "system":
+                    raise ValueError("Missing system prompt")
+                session.messages[0] = Message(role="system", content=event["data"]["content"])
             elif event["type"] == "tool_start":
                 call_id = event["data"]["id"]
                 if call_id not in session.pending:
@@ -69,6 +73,14 @@ class Session:
         # 中断前可能已产生副作用，恢复时不自动重跑工具。
         session.repair_pending()
         return session
+
+    def update_system_prompt(self, content: str) -> None:
+        """记录系统提示词更新事件，并立即替换内存中的系统消息。"""
+        if not self.messages or self.messages[0].role != "system":
+            raise ValueError("Missing system prompt")
+        if self.messages[0].content != content:
+            self.record("system_prompt", {"content": content})  # 若更新，则 JSONL 里会出现新的 system_prompt 事件，加载时会替换旧的系统消息
+            self.messages[0] = Message(role="system", content=content)
 
     def record(self, kind: str, data: dict[str, Any]) -> None:
         """向会话文件追加带时间戳的事件"""

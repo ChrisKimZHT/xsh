@@ -33,9 +33,12 @@ CLI_INTERRUPT_EXIT_CODE = 130
 PROMPT_RESOURCE_PATH = "prompts/system.md"
 PROMPT_INSTRUCTIONS_FILE = "AGENTS.md"
 PROMPT_SHELL_INSTRUCTIONS = (
-    "\nThe shell tool runs foreground commands in the workspace. It has no persistent "
-    "terminal or background job support. Use it for tests and build commands. "
-    "Inspect non-zero exit codes and timeouts before moving on.\n"
+    "\nYour shell tool runs foreground commands with the workspace as its working directory. "
+    "It is not sandboxed and has no persistent terminal or background job support. "
+    "Use the shell dialect advertised in its tool description. Use it for tests and build commands.\n\n"
+    "Check the [exit code: N] marker on every shell result; investigate failures and "
+    "timeouts before moving on. After a timeout, inspect state before retrying commands "
+    "with side effects.\n"
 )
 PROMPT_MAX_INSTRUCTIONS_BYTES = 128000
 
