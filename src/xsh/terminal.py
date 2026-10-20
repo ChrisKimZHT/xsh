@@ -205,6 +205,11 @@ class Terminal:
                 f"\nContext: {result.context_tokens} / {self.context_window} tokens ({result.context_tokens / self.context_window:.1%})",
                 style="dim",
             )
+        if result.cache_hit_rate is not None:
+            summary.append(
+                f"\nCache hit: {result.cache_hit_rate:.1%}" + (" (partial)" if result.cache_partial else ""),
+                style="dim",
+            )
         self.console.print()
         self.console.print(Panel(summary, title="Turn result", title_align="left", border_style=style, expand=False))
         if result.error:

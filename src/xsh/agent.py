@@ -22,6 +22,8 @@ class TurnResult:
     usage: dict[str, int] = field(default_factory=dict)
     usage_partial: bool = False
     context_tokens: int | None = None
+    cache_hit_rate: float | None = None
+    cache_partial: bool = False
 
 
 class Agent:
@@ -51,6 +53,9 @@ class Agent:
         usage: dict[str, int] = {}
         usage_partial = False
         context_tokens = None
+        cached_tokens = 0
+        cache_prompt_tokens = 0
+        cache_steps = 0
 
         def finish(status: str, text: str = "", error: str = "") -> TurnResult:
             """结束该 Turn：生成结果、停止工具状态刷新并落盘 turn_end"""
@@ -62,6 +67,8 @@ class Agent:
                 usage=usage.copy(),
                 usage_partial=usage_partial,
                 context_tokens=context_tokens,
+                cache_hit_rate=cached_tokens / cache_prompt_tokens if cache_prompt_tokens else None,
+                cache_partial=cache_steps < step,
             )
             # 无论正常结束还是中断、异常，都停止工具状态刷新，避免影响后续终端输出。
             self.report("tool_end", "")
@@ -74,6 +81,8 @@ class Agent:
                     "usage": result.usage,
                     "usage_partial": result.usage_partial,
                     "context_tokens": result.context_tokens,
+                    "cache_hit_rate": result.cache_hit_rate,
+                    "cache_partial": result.cache_partial,
                 },
             )
             return result
@@ -115,6 +124,16 @@ class Agent:
                             context_tokens = value
                     else:
                         usage_partial = True
+                # 兼容标准 cached_tokens 和 DeepSeek 的缓存命中字段。
+                details = response.usage.get("prompt_tokens_details")
+                cached = details.get("cached_tokens") if isinstance(details, dict) else None
+                if cached is None:
+                    cached = response.usage.get("prompt_cache_hit_tokens")
+                prompt_tokens = response.usage.get("prompt_tokens")
+                if type(prompt_tokens) is int and type(cached) is int and 0 <= cached <= prompt_tokens:
+                    cached_tokens += cached
+                    cache_prompt_tokens += prompt_tokens
+                    cache_steps += 1
                 self.session.record(
                     "response",
                     {
