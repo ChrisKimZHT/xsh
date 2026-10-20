@@ -13,6 +13,7 @@ from xsh.constants import (
     TERMINAL_INTRO,
     TERMINAL_PROMPT,
     TERMINAL_REFRESH_PER_SECOND,
+    TERMINAL_REQUIRED_ERROR,
 )
 from xsh.messages import Message
 
@@ -20,9 +21,9 @@ from xsh.messages import Message
 class Terminal:
     """终端输入输出对象，负责在终端中接受用户输入，并呈现 Agent 运行过程和结果，基于 rich 库实现"""
 
-    def __init__(self, verbose: bool = False, console: Console | None = None, error_console: Console | None = None):
-        self.console = console or Console()
-        self.errors = error_console or Console(stderr=True)
+    def __init__(self, verbose: bool = False):
+        self.console = Console()
+        self.errors = Console(stderr=True)
         self.verbose = verbose
         self.context_window: int | None = None
         self._live: Live | None = None  # Live 对象，用于在终端中动态刷新模型输出
@@ -34,8 +35,12 @@ class Terminal:
         self._turn_started_at: float | None = None
         self._turn_elapsed: float | None = None
 
+        # 只支持终端输出；重定向或管道无法原地刷新界面，直接报错。
+        if not (self.console.is_terminal and self.errors.is_terminal):
+            raise OSError(TERMINAL_REQUIRED_ERROR)
+
     def _tool_status(self, status: str, result_chars: int | None = None) -> None:
-        """原地刷新工具状态面板；管道输出只保留完成状态。"""
+        """原地刷新工具状态面板"""
         style = {"Pending": "yellow", "Running": "cyan", "Completed": "green", "Interrupted": "yellow"}[status]
         text = Text(status, style=f"bold {style}")
         if result_chars is not None:
@@ -44,15 +49,12 @@ class Terminal:
         if finished and self._tool_started_at is not None:
             text.append(f" | {perf_counter() - self._tool_started_at:.3f}s", style="dim")
         panel = Panel(text, title=Text(f"Tool {self._tool_name}"), title_align="left", border_style=style, expand=False)
-        if self.errors.is_terminal:
-            if self._tool_live is None:
-                # 状态仅在事件到来时变化，无需后台定时刷新。
-                self._tool_live = Live(panel, console=self.errors, auto_refresh=False)
-                self._tool_live.start(refresh=True)
-            else:
-                self._tool_live.update(panel, refresh=True)
-        elif finished:  # 管道不支持原地刷新，只输出最终结果面板。
-            self.errors.print(panel)
+        if self._tool_live is None:
+            # 状态仅在事件到来时变化，无需后台定时刷新。
+            self._tool_live = Live(panel, console=self.errors, auto_refresh=False)
+            self._tool_live.start(refresh=True)
+        else:
+            self._tool_live.update(panel, refresh=True)
 
     def _stop_tool(self) -> None:
         """停止刷新并保留最终状态面板，重复调用也可安全退出。"""
@@ -87,21 +89,13 @@ class Terminal:
             if reasoning != self._reasoning:  # 思维状态发生变化，刷新终端输出
                 self.report("assistant_end", "")
                 self._reasoning = reasoning
-                if reasoning and not self.console.is_terminal:  # 如果是管道输出，则在思维开始时打印提示，防止混到一起
-                    self.console.file.write("Thinking:\n")
 
             self._text += text  # 拼接模型输出文本
 
-            if self.console.is_terminal:
-                # 如果是终端输出，则使用 Live 动态刷新终端输出
-                if self._live is None:
-                    self._live = Live(console=self.console, refresh_per_second=TERMINAL_REFRESH_PER_SECOND, transient=True)
-                    self._live.start()
-                self._live.update(self._render_text())
-            else:
-                # 如果是管道输出，则直接打印模型当前的文本块
-                self.console.file.write(text)
-                self.console.file.flush()
+            if self._live is None:  # 使用 Live 动态刷新终端输出
+                self._live = Live(console=self.console, refresh_per_second=TERMINAL_REFRESH_PER_SECOND, transient=True)
+                self._live.start()
+            self._live.update(self._render_text())
 
         elif kind == "assistant_end":  # 模型输出结束
             if self._live is not None:
@@ -111,8 +105,6 @@ class Terminal:
                 # 简洁模式的思维仅供实时预览，结束时会消失，不会再打印一次
                 if not self._reasoning or self.verbose:
                     self.console.print(self._render_text())
-            elif self._text:
-                self.console.print()
             self._text = ""
 
         elif kind == "tool_result":  # 工具调用结果
@@ -214,13 +206,10 @@ class Terminal:
             if message.reasoning_content:
                 self.console.print(Panel(Text(message.reasoning_content, style="dim"), title="Thinking", title_align="left", border_style="dim"))
             if message.content:
-                if self.console.is_terminal and message.role == "assistant":
+                if message.role == "assistant":
                     self.console.print(Panel(Markdown(message.content), title="Assistant", title_align="left", border_style="cyan"))
                 else:
                     self.console.print(Text(message.content))
             for call in message.tool_calls:
                 self.console.print(Text(f"  {call.name}({call.arguments})", style="dim"))
 
-    def system_prompt(self, text: str) -> None:
-        """打印系统提示"""
-        self.console.print(Text(text))

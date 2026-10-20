@@ -1,6 +1,7 @@
 """cli.py - 主函数，准备会话、工具、模型，创建 Agent 并运行，维护 Turn 循环"""
 
 import argparse
+import sys
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
@@ -39,7 +40,6 @@ def parser() -> argparse.ArgumentParser:
     sessions.add_argument("--resume", type=Path, help="Resume an existing JSONL session")
     result.add_argument("--allow-shell", action="store_true", help="Enable unsandboxed shell execution")
     result.add_argument("--verbose", action="store_true", help="Print tool results to stderr")
-    result.add_argument("--show-prompt", action="store_true", help="Print a fresh system prompt and exit")
 
     # 覆盖 .env 配置的命令行参数
     result.add_argument("--base-url", help="OpenAI-compatible API base URL")
@@ -56,16 +56,18 @@ def parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     load_dotenv(Path.cwd() / CLI_ENV_FILE, override=False)
-    terminal = Terminal(verbose=args.verbose)
+
+    # 仅支持终端输出；重定向或管道无法渲染动态界面，直接报错退出。
+    try:
+        terminal = Terminal(verbose=args.verbose)
+    except OSError as error:
+        print(f"xsh: {error}", file=sys.stderr)
+        return 2
 
     try:
         workspace = (args.workspace or Path.cwd()).resolve(strict=True)
         if not workspace.is_dir():
             raise ValueError("Workspace must be a directory")
-
-        if args.show_prompt:
-            terminal.system_prompt(build_prompt(workspace, allow_shell=args.allow_shell))
-            return 0
 
         # 覆盖 .env 配置的命令行参数
         settings = Settings.from_env(

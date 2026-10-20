@@ -17,6 +17,7 @@ MODEL_DEFAULT_MAX_TOKENS = 65536
 TERMINAL_REFRESH_PER_SECOND = 10
 TERMINAL_INTRO = "Enter a task; /history shows messages, /exit quits. Ctrl+C interrupts a turn."
 TERMINAL_PROMPT = "\n[bold cyan]xsh> [/]"
+TERMINAL_REQUIRED_ERROR = "an interactive terminal is required; redirecting or piping output is not supported"
 
 # cli.py
 CLI_ENV_FILE = ".env"
