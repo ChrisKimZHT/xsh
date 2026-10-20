@@ -22,9 +22,6 @@ where = ["src"]
 [tool.setuptools.package-data]
 xsh = ["prompts/*.md"]
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-
 [tool.ruff]
 target-version = "py312"
 line-length = 200
