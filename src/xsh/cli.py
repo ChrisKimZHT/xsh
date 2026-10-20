@@ -39,7 +39,7 @@ def parser() -> argparse.ArgumentParser:
     sessions.add_argument("--session", type=Path, help="Create a new JSONL file at this path")
     sessions.add_argument("--resume", type=Path, help="Resume an existing JSONL session")
     result.add_argument("--allow-shell", action="store_true", help="Enable unsandboxed shell execution")
-    result.add_argument("--verbose", action="store_true", help="Print tool results to stderr")
+    result.add_argument("--verbose", action="store_true", help="Show the system prompt, reasoning, and tool results on stdout")
 
     # 覆盖 .env 配置的命令行参数
     result.add_argument("--base-url", help="OpenAI-compatible API base URL")
@@ -93,6 +93,7 @@ def main(argv: list[str] | None = None) -> int:
             path = args.session or default_path
             session = Session.create(path, workspace, build_prompt(workspace, allow_shell=args.allow_shell),)
         terminal.session(session.path)
+        terminal.system_prompt(session.messages[0].content or "")
 
         # 准备工具列表
         definitions = FileTools(workspace).definitions()

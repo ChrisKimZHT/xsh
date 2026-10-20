@@ -53,7 +53,7 @@ class Terminal:
         self._turn_elapsed: float | None = None
 
         # 只支持终端输出；重定向或管道无法原地刷新界面，直接报错。
-        if not (self.console.is_terminal and self.errors.is_terminal):
+        if not self.console.is_terminal:
             raise OSError(TERMINAL_REQUIRED_ERROR)
 
     def _tool_status(self, status: str, result_chars: int | None = None) -> None:
@@ -65,13 +65,13 @@ class Terminal:
         finished = status in {"Completed", "Interrupted"}
         if finished and self._tool_started_at is not None:
             text.append(f"\nTime: {perf_counter() - self._tool_started_at:.3f}s", style="dim")
-        width = min(28, self.errors.width)
+        width = min(28, self.console.width)
         panel = Panel(text, title=Text(f"Tool {self._tool_name}"), title_align="left", border_style=style, width=width)
         self._tool_panels[-1] = panel
         panels = Columns(self._tool_panels, width=width, equal=True, column_first=False)
         if self._tool_live is None:
             # 状态仅在事件到来时变化，无需后台定时刷新。
-            self._tool_live = Live(panels, console=self.errors, auto_refresh=False)
+            self._tool_live = Live(panels, console=self.console, auto_refresh=False)
             self._tool_live.start(refresh=True)
         else:
             self._tool_live.update(panels, refresh=True)
@@ -82,7 +82,7 @@ class Terminal:
             self._tool_live.stop()
             self._tool_live = None
         if self._tool_results:
-            self.errors.print(Group(*self._tool_results))
+            self.console.print(Group(*self._tool_results))
         self._tool_panels.clear()
         self._tool_results.clear()
 
@@ -142,8 +142,8 @@ class Terminal:
             self._stop_tool()
             # Turn 起始使用粗分隔线，后续 Step 使用细分隔线，便于滚动查找。
             first_step = text.endswith(", Step 1")
-            self.errors.print()
-            self.errors.rule(
+            self.console.print()
+            self.console.rule(
                 Text(text, style="bold cyan" if first_step else "bold blue"),
                 characters="━" if first_step else "─",
                 style="cyan" if first_step else "blue",
@@ -172,7 +172,12 @@ class Terminal:
 
     def session(self, path: object) -> None:
         """打印会话路径"""
-        self.errors.print(Text(f"Session: {path}", style="dim"))
+        self.console.print(Text(f"Session: {path}", style="dim"))
+
+    def system_prompt(self, text: str) -> None:
+        """详细模式显示会话实际使用的完整系统提示词。"""
+        if self.verbose:
+            self.console.print(Panel(Text(text), title="System prompt", title_align="left", border_style="dim"))
 
     def outcome(self, result: TurnResult) -> None:
         """打印 Turn 结果"""
@@ -200,11 +205,10 @@ class Terminal:
                 f"\nContext: {result.context_tokens} / {self.context_window} tokens ({result.context_tokens / self.context_window:.1%})",
                 style="dim",
             )
+        self.console.print()
+        self.console.print(Panel(summary, title="Turn result", title_align="left", border_style=style, expand=False))
         if result.error:
-            summary.append("\n\n")
-            summary.append(result.error, style="red")
-        self.errors.print()
-        self.errors.print(Panel(summary, title="Turn result", title_align="left", border_style=style, expand=False))
+            self.error(result.error)
 
     def error(self, text: str) -> None:
         """打印真正的错误信息"""
@@ -212,7 +216,7 @@ class Terminal:
 
     def intro(self) -> None:
         """打印终端介绍信息"""
-        self.errors.print(Panel(TERMINAL_INTRO, title="xsh", title_align="left", border_style="cyan"))
+        self.console.print(Panel(TERMINAL_INTRO, title="xsh", title_align="left", border_style="cyan"))
 
     def prompt(self) -> str:
         """打印终端提示符，并**接受**用户输入"""
@@ -226,6 +230,7 @@ class Terminal:
         """打印会话历史"""
         for message in messages:
             if message.role == "system":
+                self.system_prompt(message.content or "")
                 continue
             self.console.rule(Text(message.role, style="cyan"))
             if message.reasoning_content:
