@@ -2,7 +2,8 @@
 
 from time import perf_counter
 
-from rich.console import Console
+from rich.columns import Columns
+from rich.console import Console, Group
 from rich.live import Live
 from rich.markdown import Markdown
 from rich.panel import Panel
@@ -30,6 +31,8 @@ class Terminal:
         self._text = ""  # 缓存拼接后的模型输出文本
         self._reasoning = False
         self._tool_live: Live | None = None  # 独立维护工具状态行，避免与模型输出的 Live 混用
+        self._tool_panels: list[Panel] = []  # 同一 Step 的工具按行排列
+        self._tool_results: list[Panel] = []  # 详细结果在工具组结束后打印
         self._tool_name = ""  # 当前工具名称，供后续状态更新复用
         self._tool_started_at: float | None = None
         self._turn_started_at: float | None = None
@@ -42,25 +45,32 @@ class Terminal:
     def _tool_status(self, status: str, result_chars: int | None = None) -> None:
         """原地刷新工具状态面板"""
         style = {"Pending": "yellow", "Running": "cyan", "Completed": "green", "Interrupted": "yellow"}[status]
-        text = Text(status, style=f"bold {style}")
+        text = Text(f"Status: {status}", style=f"bold {style}")
         if result_chars is not None:
-            text.append(f" | {result_chars} chars", style="dim")
+            text.append(f"\nLength: {result_chars} chars", style="dim")
         finished = status in {"Completed", "Interrupted"}
         if finished and self._tool_started_at is not None:
-            text.append(f" | {perf_counter() - self._tool_started_at:.3f}s", style="dim")
-        panel = Panel(text, title=Text(f"Tool {self._tool_name}"), title_align="left", border_style=style, expand=False)
+            text.append(f"\nTime: {perf_counter() - self._tool_started_at:.3f}s", style="dim")
+        width = min(28, self.errors.width)
+        panel = Panel(text, title=Text(f"Tool {self._tool_name}"), title_align="left", border_style=style, width=width)
+        self._tool_panels[-1] = panel
+        panels = Columns(self._tool_panels, width=width, equal=True, column_first=False)
         if self._tool_live is None:
             # 状态仅在事件到来时变化，无需后台定时刷新。
-            self._tool_live = Live(panel, console=self.errors, auto_refresh=False)
+            self._tool_live = Live(panels, console=self.errors, auto_refresh=False)
             self._tool_live.start(refresh=True)
         else:
-            self._tool_live.update(panel, refresh=True)
+            self._tool_live.update(panels, refresh=True)
 
     def _stop_tool(self) -> None:
         """停止刷新并保留最终状态面板，重复调用也可安全退出。"""
         if self._tool_live is not None:
             self._tool_live.stop()
             self._tool_live = None
+        if self._tool_results:
+            self.errors.print(Group(*self._tool_results))
+        self._tool_panels.clear()
+        self._tool_results.clear()
 
     def _render_text(self):
         """将模型的 思维+输出 渲染为 灰色文本思维块 + Markdown输出块"""
@@ -108,14 +118,14 @@ class Terminal:
             self._text = ""
 
         elif kind == "tool_result":  # 工具调用结果
-            # 按实际返回文本统计字符数，先刷新完成状态，再结束实时显示。
+            # 保留完成面板，后续工具继续加入同一 Step 的横向布局。
             self._tool_status("Completed", result_chars=len(text))
-            self._stop_tool()
             self._tool_started_at = None
             if self.verbose:
-                self.errors.print(Panel(Text(text), title="Tool result", title_align="left", border_style="dim"))
+                self._tool_results.append(Panel(Text(text), title=f"Tool result: {self._tool_name}", title_align="left", border_style="dim"))
 
         elif kind == "step":  # 模型 Step 进度
+            self._stop_tool()
             # Turn 起始使用粗分隔线，后续 Step 使用细分隔线，便于滚动查找。
             first_step = text.endswith(", Step 1")
             self.errors.print()
@@ -130,6 +140,7 @@ class Terminal:
             # 将工具名称中的连续空白（包括换行）压缩为单个空格。
             self._tool_name = " ".join(text.split())
             self._tool_started_at = None
+            self._tool_panels.append(Panel(""))
             self._tool_status("Pending")
 
         elif kind == "tool_start":  # 工具即将执行，原地更新为运行状态
@@ -153,10 +164,10 @@ class Terminal:
         """打印 Turn 结果"""
         style = {"completed": "green", "error": "red"}.get(result.status, "yellow")
         status = result.status.replace("_", " ").capitalize()
-        summary = Text(status, style=f"bold {style}")
-        summary.append(f" | {result.steps} {'step' if result.steps == 1 else 'steps'}", style="dim")
+        summary = Text(f"Status: {status}", style=f"bold {style}")
+        summary.append(f"\nSteps: {result.steps}", style="dim")
         if self._turn_elapsed is not None:
-            summary.append(f" | {self._turn_elapsed:.3f}s", style="dim")
+            summary.append(f"\nTime: {self._turn_elapsed:.3f}s", style="dim")
             self._turn_elapsed = None
         if result.usage:
             values = ", ".join(
