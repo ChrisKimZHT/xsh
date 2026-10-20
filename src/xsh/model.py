@@ -3,12 +3,35 @@
 from collections.abc import Callable
 from typing import Any, Protocol
 
-from openai import OpenAI
+from openai import APIError, OpenAI
 
 from xsh.constants import (
     MODEL_DEFAULT_MAX_TOKENS,
 )
 from xsh.messages import Message, ModelResponse, ToolCall
+
+
+def discover_context_window(client: OpenAI, model: str) -> int | None:
+    """尝试从当前服务商获取上下文容量，若服务商不支持将会失败"""
+    try:
+        models = client.with_options(timeout=5.0, max_retries=0).models.list()
+        match_models = list(filter(lambda m: m.id == model, models.data))
+
+        if len(match_models) == 0:
+            return None
+
+        match_model = match_models[0]
+
+        if value := getattr(match_model, "context_window", None):
+            if type(value) is int and value > 0:
+                return value
+
+        if value := getattr(match_model, "context_length", None):
+            if type(value) is int and value > 0:
+                return value
+    except (APIError, ValueError, TypeError, AttributeError):
+        return None
+    return None
 
 
 class Model(Protocol):

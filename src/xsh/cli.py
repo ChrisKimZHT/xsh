@@ -22,7 +22,7 @@ from xsh.constants import (
     CLI_SESSION_SUFFIX,
     CLI_SESSION_TIMESTAMP_FORMAT,
 )
-from xsh.model import OpenAIModel
+from xsh.model import OpenAIModel, discover_context_window
 from xsh.prompt import build_prompt
 from xsh.session import Session
 from xsh.terminal import Terminal
@@ -47,7 +47,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--api-key", help="Provider API key")
     result.add_argument("--max-steps", type=int)
     result.add_argument("--max-tokens", type=int, help="Maximum output tokens per model request")
-    result.add_argument("--context-window", type=int, help="Model context window in tokens (for usage display)")
+    result.add_argument("--context-window", type=int, help="Model context window in tokens, will override by automatic discovery")
     result.add_argument("--request-timeout", type=float, help="API request timeout in seconds")
     result.add_argument("--max-retries", type=int, help="Maximum API request retries")
     return result
@@ -107,6 +107,9 @@ def main(argv: list[str] | None = None) -> int:
             timeout=settings.request_timeout,
             max_retries=settings.max_retries,  # OpenAI 库自带请求重试
         ) as client:
+            # 获取模型的上下文长度
+            terminal.context_window = discover_context_window(client, settings.model) or settings.context_window
+
             # 准备 Agent
             agent = Agent(
                 model=OpenAIModel(client, settings.model, settings.max_tokens),
