@@ -15,8 +15,19 @@ MODEL_DEFAULT_MAX_TOKENS = 65536
 
 # terminal.py
 TERMINAL_REFRESH_PER_SECOND = 10
-TERMINAL_INTRO = "Enter a task; /history shows messages, /exit quits. Ctrl+C interrupts a turn."
-TERMINAL_PROMPT = "\n[bold cyan]xsh> [/]"
+TERMINAL_INTRO = """\
+**xsh**: a deliberately small, single-agent harness.
+
+### Input
+- **Enter** — Send your message
+- **Alt+Enter** — Insert a newline (or press **Esc**, then **Enter**)
+- **Ctrl+C** — Interrupt a running turn; exit when waiting for input
+
+### Commands
+- `/list` — Show conversation history
+- `/quit` — Quit xsh
+"""
+TERMINAL_PROMPT = "\nxsh> "
 TERMINAL_REQUIRED_ERROR = "an interactive terminal is required; redirecting or piping output is not supported"
 
 # cli.py
@@ -25,8 +36,8 @@ CLI_SESSION_DIRECTORY = ".xsh/sessions"
 CLI_SESSION_TIMESTAMP_FORMAT = "%Y%m%d-%H%M%S-"
 CLI_SESSION_ID_LENGTH = 8
 CLI_SESSION_SUFFIX = ".jsonl"
-CLI_EXIT_COMMANDS = {"/exit", "/quit"}
-CLI_HISTORY_COMMANDS = {"/history"}
+CLI_EXIT_COMMANDS = {"/quit", "/exit", "/q"}
+CLI_HISTORY_COMMANDS = {"/list", "/history", "/h"}
 CLI_INTERRUPT_EXIT_CODE = 130
 
 # prompt.py

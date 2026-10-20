@@ -2,6 +2,8 @@
 
 from time import perf_counter
 
+from prompt_toolkit import PromptSession
+from prompt_toolkit.key_binding import KeyBindings, KeyPressEvent
 from rich.columns import Columns
 from rich.console import Console, ConsoleOptions, Group, RenderableType, RenderResult
 from rich.live import Live
@@ -55,6 +57,19 @@ class Terminal:
         # 只支持终端输出；重定向或管道无法原地刷新界面，直接报错。
         if not self.console.is_terminal:
             raise OSError(TERMINAL_REQUIRED_ERROR)
+
+        # prompt_toolkit 多行输入相关初始化
+        bindings = KeyBindings()
+
+        @bindings.add("enter")
+        def submit(event: KeyPressEvent) -> None:
+            event.current_buffer.validate_and_handle()
+
+        @bindings.add("escape", "enter")
+        def newline(event: KeyPressEvent) -> None:
+            event.current_buffer.newline(copy_margin=False)
+
+        self._input: PromptSession[str] = PromptSession(multiline=True, key_bindings=bindings)
 
     def _tool_status(self, status: str, result_chars: int | None = None) -> None:
         """原地刷新工具状态面板"""
@@ -221,11 +236,14 @@ class Terminal:
 
     def intro(self) -> None:
         """打印终端介绍信息"""
-        self.console.print(Panel(TERMINAL_INTRO, title="xsh", title_align="left", border_style="cyan"))
+        self.console.print(Panel(Markdown(TERMINAL_INTRO), title="xsh", title_align="left", border_style="cyan", padding=(1, 2)))
 
     def prompt(self) -> str:
-        """打印终端提示符，并**接受**用户输入"""
-        return self.console.input(TERMINAL_PROMPT).strip()
+        """接受多行输入，保留缩进；Alt+Enter 换行，Enter 提交。"""
+        return self._input.prompt(
+            [("bold ansicyan", TERMINAL_PROMPT)],
+            prompt_continuation="...  ",
+        )
 
     def newline(self) -> None:
         """打印一个空行"""

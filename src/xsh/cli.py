@@ -146,11 +146,12 @@ def main(argv: list[str] | None = None) -> int:
                 except (EOFError, KeyboardInterrupt):
                     terminal.newline()
                     return 0
-                if prompt in CLI_EXIT_COMMANDS:
+                command = prompt.strip()
+                if command in CLI_EXIT_COMMANDS:
                     return 0
-                elif prompt in CLI_HISTORY_COMMANDS:
+                elif command in CLI_HISTORY_COMMANDS:
                     terminal.history(session.messages)
-                elif prompt:
+                elif command:
                     run(prompt)  # 运行 Agent
 
     except ValidationError as error:  # 配置验证失败
