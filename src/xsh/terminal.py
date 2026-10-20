@@ -3,7 +3,7 @@
 from time import perf_counter
 
 from rich.columns import Columns
-from rich.console import Console, Group
+from rich.console import Console, ConsoleOptions, Group, RenderableType, RenderResult
 from rich.live import Live
 from rich.markdown import Markdown
 from rich.panel import Panel
@@ -17,6 +17,20 @@ from xsh.constants import (
     TERMINAL_REQUIRED_ERROR,
 )
 from xsh.messages import Message
+
+
+class _Tail:
+    """实时预览只显示末尾一屏，按当前终端大小重新排版。"""
+
+    def __init__(self, renderable: RenderableType):
+        self.renderable = renderable
+
+    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+        lines = console.render_lines(self.renderable, options.update(height=None), new_lines=True)
+        # 留一行给光标，避免刷新触发终端滚动。
+        height = max(1, options.size.height - 1)
+        for line in lines[-height:]:
+            yield from line
 
 
 class Terminal:
@@ -105,7 +119,7 @@ class Terminal:
             if self._live is None:  # 使用 Live 动态刷新终端输出
                 self._live = Live(console=self.console, refresh_per_second=TERMINAL_REFRESH_PER_SECOND, transient=True)
                 self._live.start()
-            self._live.update(self._render_text())
+            self._live.update(_Tail(self._render_text()))
 
         elif kind == "assistant_end":  # 模型输出结束
             if self._live is not None:
