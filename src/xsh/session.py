@@ -18,6 +18,7 @@ class Session:
         self.path = path
         self.workspace = workspace.resolve()
         self.messages: list[Message] = []
+        self.turn_count = 0  # 从原始用户消息计数，摘要不增加轮次。
         self.pending: dict[str, ToolCall] = {}  # 尚未收到结果的工具调用
         self.started: set[str] = set()          # 已记录开始执行、尚未收到结果的调用 ID
 
@@ -65,6 +66,9 @@ class Session:
                 if call_id not in session.pending:
                     raise ValueError("Tool start without a pending call")
                 session.started.add(call_id)
+            elif event["type"] == "compaction":  # 读取到压缩事件时生效压缩到内存中
+                data = event["data"]
+                session._apply_compaction(data["end"], Message.model_validate(data["summary"]))
 
         # 会话第一个消息必须是系统提示
         if not session.messages or session.messages[0].role != "system":
@@ -106,11 +110,38 @@ class Session:
         """接收消息，并更新待完成和已开始的工具调用状态"""
         self._validate_next(message)
         self.messages.append(message)
+        if message.role == "user":
+            self.turn_count += 1
         if message.tool_calls:  # 如果是工具调用，则加入待完成列表
             self.pending = {call.id: call for call in message.tool_calls}
         if message.tool_call_id:  # 如果是工具结果，则从待完成列表中移除，并从已开始列表中移除
             self.pending.pop(message.tool_call_id)
             self.started.discard(message.tool_call_id)
+
+    def compact(self, end: int, summary: Message) -> None:
+        """用摘要替换 [1, end)；先追加一个完整检查点，再更新内存，原始日志保留。"""
+        self._validate_compaction(end, summary)
+        self.record("compaction", {"end": end, "summary": summary.model_dump()})
+        self._apply_compaction(end, summary)
+
+    def _validate_compaction(self, end: int, summary: Message) -> None:
+        """检查压缩范围和摘要消息的合法性"""
+        if self.pending or type(end) is not int or not 1 < end <= len(self.messages):
+            raise ValueError("Invalid compaction range or pending tool calls")
+        if summary.role != "user" or not (summary.content or "").strip():
+            raise ValueError("Compaction requires a non-empty user checkpoint")
+        pending: set[str] = set()
+        for message in self.messages[1:end]:
+            pending.update(call.id for call in message.tool_calls)
+            if message.tool_call_id:
+                pending.remove(message.tool_call_id)
+        if pending:
+            raise ValueError("Compaction would split tool calls and results")
+
+    def _apply_compaction(self, end: int, summary: Message) -> None:
+        """将 [1, end) 替换为摘要消息，更新内存状态"""
+        self._validate_compaction(end, summary)
+        self.messages[1:end] = [summary]
 
     def start_tool(self, call: ToolCall) -> None:
         """在执行工具前记录开始事件。"""

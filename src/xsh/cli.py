@@ -11,6 +11,7 @@ from openai import OpenAI
 from pydantic import ValidationError
 
 from xsh.agent import Agent
+from xsh.compaction import Compactor
 from xsh.config import Settings
 from xsh.constants import (
     CLI_ENV_FILE,
@@ -48,6 +49,10 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--max-steps", type=int)
     result.add_argument("--max-tokens", type=int, help="Maximum output tokens per model request")
     result.add_argument("--context-window", type=int, help="Model context window in tokens, will override by automatic discovery")
+    result.add_argument("--auto-compact", action=argparse.BooleanOptionalAction, default=None, help="Automatically compact context before model requests")
+    result.add_argument("--compact-threshold", type=float, help="Context pressure fraction (default: 0.8)")
+    result.add_argument("--compact-retain-ratio", type=float, help="Recent context fraction to retain (default: 0.16)")
+    result.add_argument("--compact-max-tokens", type=int, help="Maximum summary output tokens (default: 4096)")
     result.add_argument("--request-timeout", type=float, help="API request timeout in seconds")
     result.add_argument("--max-retries", type=int, help="Maximum API request retries")
     return result
@@ -77,6 +82,10 @@ def main(argv: list[str] | None = None) -> int:
             max_steps=args.max_steps,
             max_tokens=args.max_tokens,
             context_window=args.context_window,
+            auto_compact=args.auto_compact,
+            compact_threshold=args.compact_threshold,
+            compact_retain_ratio=args.compact_retain_ratio,
+            compact_max_tokens=args.compact_max_tokens,
             request_timeout=args.request_timeout,
             max_retries=args.max_retries,
         )
@@ -114,16 +123,37 @@ def main(argv: list[str] | None = None) -> int:
             # 获取模型的上下文长度
             terminal.context_window = discover_context_window(client, settings.model) or settings.context_window
 
+            # 自动压缩必须要有上下文窗口参数，否则无法计算上下文压力
+            if settings.auto_compact and terminal.context_window is None:
+                terminal.report("compaction", "Auto compaction needs --context-window or XSH_CONTEXT_WINDOW; /compact remains available.")
+
             # 准备 Agent
+            model = OpenAIModel(client, settings.model, settings.max_tokens)
             agent = Agent(
-                model=OpenAIModel(client, settings.model, settings.max_tokens),
+                model=model,
                 session=session,
                 tools=ToolRegistry(definitions),
                 max_steps=settings.max_steps,
                 report=terminal.report,
+                compactor=Compactor(
+                    model, context_window=terminal.context_window, auto=settings.auto_compact,
+                    threshold=settings.compact_threshold, retain_ratio=settings.compact_retain_ratio,
+                    max_tokens=settings.compact_max_tokens, report=terminal.report,
+                ),
             )
 
             def run(prompt: str) -> int:
+                if prompt.strip() == "/compact":
+                    try:
+                        if agent.compact() is None:
+                            terminal.report("compaction", "No history available to compact.")
+                        return 0
+                    except KeyboardInterrupt:
+                        terminal.error("Compaction interrupted; history preserved.")
+                        return CLI_INTERRUPT_EXIT_CODE
+                    except Exception as error:
+                        terminal.error(f"Compaction failed: {type(error).__name__}: {error}")
+                        return 1
                 # 单轮运行
                 outcome = agent.run(prompt)
                 terminal.outcome(outcome)

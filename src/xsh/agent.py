@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from xsh.compaction import CompactionResult, Compactor
 from xsh.constants import (
     AGENT_DEFAULT_MAX_STEPS,
 )
@@ -36,6 +37,7 @@ class Agent:
         tools: ToolRegistry,
         max_steps: int = AGENT_DEFAULT_MAX_STEPS,
         report: Callable[[str, str], None] | None = None,
+        compactor: Compactor | None = None,
     ):
         if max_steps < 1:
             raise ValueError("Agent limits must be positive")
@@ -44,6 +46,14 @@ class Agent:
         self.tools = tools
         self.max_steps = max_steps
         self.report = report or (lambda kind, text: None)
+        self.compactor = compactor
+
+    def compact(self) -> CompactionResult | None:
+        """轮次间的手动压缩，不新增用户消息或执行工具。"""
+        self.session.repair_pending()
+        if self.compactor is None:
+            raise ValueError("Context compaction is not configured")
+        return self.compactor.compact(self.session, self.tools.schemas(), manual=True)
 
     def run(self, prompt: str) -> TurnResult:
         if not prompt.strip():
@@ -92,10 +102,13 @@ class Agent:
             self.session.repair_pending()  # 为未收到结果的工具调用补写错误结果，不重新执行
             self.session.append(Message(role="user", content=prompt))  # 添加用户输入到会话中
             # 每条用户消息对应一个 Turn，从会话历史计数以支持恢复后继续编号。
-            turn = sum(message.role == "user" for message in self.session.messages)
+            turn = self.session.turn_count
 
             # ※ Agent Step 循环
             for step in range(1, self.max_steps + 1):
+                # 每 Step 之前都尝试压缩，未达到压缩条件，压缩器会自动跳过
+                if self.compactor:
+                    self.compactor.compact(self.session, self.tools.schemas())
                 # 准备模型请求参数，取出会话消息和工具列表
                 request = self.model.build_request(self.session.messages, self.tools.schemas())
                 self.session.record("request", {"step": step, "body": request})

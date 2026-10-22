@@ -118,6 +118,10 @@ class Terminal:
             self._turn_started_at = perf_counter()
             self._turn_elapsed = None
 
+        elif kind == "compaction":
+            self._stop_tool()
+            self.console.print(Text(text, style="dim cyan"))
+
         elif kind == "assistant_start":  # 模型开始输出
             self._text = ""
             self._reasoning = False

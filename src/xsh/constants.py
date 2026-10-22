@@ -1,12 +1,5 @@
 """constants.py - 集中管理运行参数与固定文本"""
 
-# config.py
-CONFIG_DEFAULT_MAX_STEPS = 100000
-CONFIG_DEFAULT_MAX_TOKENS = 65536
-CONFIG_DEFAULT_REQUEST_TIMEOUT = 600
-CONFIG_DEFAULT_MAX_RETRIES = 3
-CONFIG_MAX_RETRIES = 10
-
 # agent.py
 AGENT_DEFAULT_MAX_STEPS = 100000
 
@@ -25,6 +18,7 @@ TERMINAL_INTRO = """\
 
 ### Commands
 - `/list` — Show conversation history
+- `/compact` — Summarize older context and retain recent messages
 - `/quit` — Quit xsh
 """
 TERMINAL_PROMPT = "\nxsh> "
