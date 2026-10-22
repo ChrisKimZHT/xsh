@@ -1,5 +1,6 @@
 """terminal.py - 负责终端的输入和输出"""
 
+from importlib.metadata import version
 from time import perf_counter
 
 from prompt_toolkit import PromptSession
@@ -249,7 +250,7 @@ class Terminal:
 
     def intro(self) -> None:
         """打印终端介绍信息"""
-        self.console.print(Panel(Markdown(_INTRO), title="xsh", title_align="left", border_style="cyan", padding=(1, 2)))
+        self.console.print(Panel(Markdown(_INTRO), title=f"xsh v{version('xsh-agent')}", title_align="left", border_style="cyan", padding=(1, 2)))
 
     def prompt(self) -> str:
         """接受多行输入，保留缩进；Alt+Enter 换行，Enter 提交。"""
