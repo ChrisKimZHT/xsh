@@ -5,9 +5,6 @@ from typing import Any, Protocol
 
 from openai import APIError, OpenAI
 
-from xsh.constants import (
-    MODEL_DEFAULT_MAX_TOKENS,
-)
 from xsh.messages import Message, ModelResponse, ToolCall
 
 
@@ -49,7 +46,7 @@ class Model(Protocol):
 class OpenAIModel:
     """OpenAI 模型实现类"""
 
-    def __init__(self, client: OpenAI, model: str, max_tokens: int = MODEL_DEFAULT_MAX_TOKENS):
+    def __init__(self, client: OpenAI, model: str, max_tokens: int):
         self.client = client
         self.model = model
         self.max_tokens = max_tokens

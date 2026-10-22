@@ -9,21 +9,17 @@ from pathlib import Path
 
 from pydantic import Field
 
-from xsh.constants import (
-    SHELL_DEFAULT_TIMEOUT_SECONDS,
-    SHELL_MAX_OUTPUT_BYTES,
-    SHELL_MAX_TIMEOUT_SECONDS,
-    SHELL_TIMEOUT_MARKER,
-    SHELL_TRUNCATION_MARKER,
-)
 from xsh.tools.base import Tool, ToolArgs, bounded
+
+_MAX_TIMEOUT_SECONDS = 600
+_MAX_OUTPUT_BYTES = 256_000
 
 
 class ShellArgs(ToolArgs):
     command: str = Field(
         min_length=1, description="A foreground command in the advertised dialect."
     )
-    timeout_seconds: int = Field(default=SHELL_DEFAULT_TIMEOUT_SECONDS, ge=1, le=SHELL_MAX_TIMEOUT_SECONDS)
+    timeout_seconds: int = Field(default=120, ge=1, le=_MAX_TIMEOUT_SECONDS)
 
 
 def _stop(process: subprocess.Popen) -> None:
@@ -89,13 +85,13 @@ def shell_tool(workspace: Path) -> Tool:
                 _stop(process)
                 raise
             output.seek(0)
-            raw = output.read(SHELL_MAX_OUTPUT_BYTES + 1)
-        text = raw[: SHELL_MAX_OUTPUT_BYTES].decode("utf-8", errors="replace")
-        if len(raw) > SHELL_MAX_OUTPUT_BYTES:
-            text += SHELL_TRUNCATION_MARKER
+            raw = output.read(_MAX_OUTPUT_BYTES + 1)
+        text = raw[: _MAX_OUTPUT_BYTES].decode("utf-8", errors="replace")
+        if len(raw) > _MAX_OUTPUT_BYTES:
+            text += "\n[Output truncated; rerun with a narrower command or redirect to a file.]"
         status = f"[exit code: {process.returncode}]"
         if timed_out:
-            status += SHELL_TIMEOUT_MARKER
+            status += " [timed out; inspect state before retrying commands with side effects]"
         return status + "\n" + bounded(text)
 
     return Tool(

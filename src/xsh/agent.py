@@ -4,9 +4,6 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from xsh.compaction import CompactionResult, Compactor
-from xsh.constants import (
-    AGENT_DEFAULT_MAX_STEPS,
-)
 from xsh.messages import Message
 from xsh.model import Model
 from xsh.session import Session
@@ -35,7 +32,7 @@ class Agent:
         model: Model,
         session: Session,
         tools: ToolRegistry,
-        max_steps: int = AGENT_DEFAULT_MAX_STEPS,
+        max_steps: int,
         report: Callable[[str, str], None] | None = None,
         compactor: Compactor | None = None,
     ):

@@ -5,6 +5,8 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 
+STATE_DIRECTORY = ".xsh"
+
 
 class Settings(BaseModel):
     base_url: str = Field(min_length=1)

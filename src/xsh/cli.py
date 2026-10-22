@@ -12,17 +12,7 @@ from pydantic import ValidationError
 
 from xsh.agent import Agent
 from xsh.compaction import Compactor
-from xsh.config import Settings
-from xsh.constants import (
-    CLI_ENV_FILE,
-    CLI_EXIT_COMMANDS,
-    CLI_HISTORY_COMMANDS,
-    CLI_INTERRUPT_EXIT_CODE,
-    CLI_SESSION_DIRECTORY,
-    CLI_SESSION_ID_LENGTH,
-    CLI_SESSION_SUFFIX,
-    CLI_SESSION_TIMESTAMP_FORMAT,
-)
+from xsh.config import STATE_DIRECTORY, Settings
 from xsh.model import OpenAIModel, discover_context_window
 from xsh.prompt import build_prompt
 from xsh.session import Session
@@ -30,6 +20,8 @@ from xsh.terminal import Terminal
 from xsh.tools.base import ToolRegistry
 from xsh.tools.files import FileTools
 from xsh.tools.shell import shell_tool
+
+_SESSION_DIRECTORY = Path(STATE_DIRECTORY) / "sessions"
 
 
 def parser() -> argparse.ArgumentParser:
@@ -60,7 +52,7 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
-    load_dotenv(Path.cwd() / CLI_ENV_FILE, override=False)
+    load_dotenv(Path.cwd() / ".env", override=False)
 
     # 仅支持终端输出；重定向或管道无法渲染动态界面，直接报错退出。
     try:
@@ -95,11 +87,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.resume is not None:
             resume_path = args.resume
             if resume_path is True:  # 如果没有提供路径，则 resume 最近的会话
-                session_directory = workspace / CLI_SESSION_DIRECTORY
+                session_directory = workspace / _SESSION_DIRECTORY
                 resume_path = None
                 # 找最近修改的会话文件作为恢复路径
                 latest_modified_time = -1
-                for path in sorted(session_directory.glob(f"*{CLI_SESSION_SUFFIX}")):
+                for path in sorted(session_directory.glob("*.jsonl")):
                     if not path.is_file():
                         continue
                     modified_time = path.stat().st_mtime_ns
@@ -116,7 +108,8 @@ def main(argv: list[str] | None = None) -> int:
             system_prompt = build_prompt(workspace, model=settings.model, allow_shell=args.allow_shell)
             session.update_system_prompt(system_prompt)
         else:
-            default_path = workspace / Path(CLI_SESSION_DIRECTORY) / (datetime.now().strftime(CLI_SESSION_TIMESTAMP_FORMAT) + uuid4().hex[:CLI_SESSION_ID_LENGTH] + CLI_SESSION_SUFFIX)
+            filename = datetime.now().strftime("%Y%m%d-%H%M%S-") + uuid4().hex[:8] + ".jsonl"
+            default_path = workspace / _SESSION_DIRECTORY / filename
             path = args.session or default_path
             system_prompt = build_prompt(workspace, model=settings.model, allow_shell=args.allow_shell)
             session = Session.create(path, workspace, system_prompt)
@@ -165,7 +158,7 @@ def main(argv: list[str] | None = None) -> int:
                         return 0
                     except KeyboardInterrupt:
                         terminal.error("Compaction interrupted; history preserved.")
-                        return CLI_INTERRUPT_EXIT_CODE
+                        return 130
                     except Exception as error:
                         terminal.error(f"Compaction failed: {type(error).__name__}: {error}")
                         return 1
@@ -175,7 +168,7 @@ def main(argv: list[str] | None = None) -> int:
                 if outcome.status == "completed":
                     return 0
                 elif outcome.status == "cancelled":
-                    return CLI_INTERRUPT_EXIT_CODE
+                    return 130
                 else:
                     return 1
 
@@ -192,9 +185,9 @@ def main(argv: list[str] | None = None) -> int:
                     terminal.newline()
                     return 0
                 command = prompt.strip()
-                if command in CLI_EXIT_COMMANDS:
+                if command in {"/quit", "/exit", "/q"}:
                     return 0
-                elif command in CLI_HISTORY_COMMANDS:
+                elif command in {"/list", "/history", "/h"}:
                     terminal.history(session)
                 elif command:
                     run(prompt)  # 运行 Agent

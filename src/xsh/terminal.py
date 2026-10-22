@@ -12,13 +12,22 @@ from rich.panel import Panel
 from rich.text import Text
 
 from xsh.agent import TurnResult
-from xsh.constants import (
-    TERMINAL_INTRO,
-    TERMINAL_PROMPT,
-    TERMINAL_REFRESH_PER_SECOND,
-    TERMINAL_REQUIRED_ERROR,
-)
 from xsh.session import Session
+
+_REFRESH_PER_SECOND = 10
+_INTRO = """\
+**xsh**: a deliberately small, single-agent harness.
+
+### Input
+- **Enter** — Send your message
+- **Alt+Enter** — Insert a newline (or press **Esc**, then **Enter**)
+- **Ctrl+C** — Interrupt a running turn; exit when waiting for input
+
+### Commands
+- `/list` — Show conversation history
+- `/compact` — Summarize older context and retain recent messages
+- `/quit` — Quit xsh
+"""
 
 
 class _Tail:
@@ -56,7 +65,7 @@ class Terminal:
 
         # 只支持终端输出；重定向或管道无法原地刷新界面，直接报错。
         if not self.console.is_terminal:
-            raise OSError(TERMINAL_REQUIRED_ERROR)
+            raise OSError("an interactive terminal is required; redirecting or piping output is not supported")
 
         # prompt_toolkit 多行输入相关初始化
         bindings = KeyBindings()
@@ -136,7 +145,7 @@ class Terminal:
             self._text += text  # 拼接模型输出文本
 
             if self._live is None:  # 使用 Live 动态刷新终端输出
-                self._live = Live(console=self.console, refresh_per_second=TERMINAL_REFRESH_PER_SECOND, transient=True)
+                self._live = Live(console=self.console, refresh_per_second=_REFRESH_PER_SECOND, transient=True)
                 self._live.start()
             self._live.update(_Tail(self._render_text()))
 
@@ -240,12 +249,12 @@ class Terminal:
 
     def intro(self) -> None:
         """打印终端介绍信息"""
-        self.console.print(Panel(Markdown(TERMINAL_INTRO), title="xsh", title_align="left", border_style="cyan", padding=(1, 2)))
+        self.console.print(Panel(Markdown(_INTRO), title="xsh", title_align="left", border_style="cyan", padding=(1, 2)))
 
     def prompt(self) -> str:
         """接受多行输入，保留缩进；Alt+Enter 换行，Enter 提交。"""
         return self._input.prompt(
-            [("bold ansicyan", TERMINAL_PROMPT)],
+            [("bold ansicyan", "\nxsh> ")],
             prompt_continuation="...  ",
         )
 

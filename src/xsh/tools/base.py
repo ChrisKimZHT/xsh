@@ -5,11 +5,9 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel, ConfigDict
 
-from xsh.constants import (
-    BASE_OUTPUT_LIMIT,
-    BASE_TRUNCATION_MARKER,
-)
 from xsh.messages import Message, ToolCall
+
+_OUTPUT_LIMIT = 64_000
 
 
 class ToolArgs(BaseModel):
@@ -36,8 +34,8 @@ class Tool:
         }
 
 
-def bounded(text: str, limit: int = BASE_OUTPUT_LIMIT) -> str:
-    marker = BASE_TRUNCATION_MARKER
+def bounded(text: str, limit: int = _OUTPUT_LIMIT) -> str:
+    marker = "\n[Output truncated; request a smaller range or narrower search.]"
     return text if len(text) <= limit else text[: limit - len(marker)] + marker
 
 
