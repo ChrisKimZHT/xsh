@@ -150,18 +150,27 @@ def main(argv: list[str] | None = None) -> int:
                 ),
             )
 
-            def run(prompt: str) -> int:
-                if prompt.strip() == "/compact":
-                    try:
-                        if agent.compact() is None:
-                            terminal.report("compaction", "No history available to compact.")
+            def run(prompt: str) -> int | None:
+                """统一处理命令和普通输入，返回 None 表示退出交互循环。"""
+                match prompt.strip():
+                    case "":
                         return 0
-                    except KeyboardInterrupt:
-                        terminal.error("Compaction interrupted; history preserved.")
-                        return 130
-                    except Exception as error:
-                        terminal.error(f"Compaction failed: {type(error).__name__}: {error}")
-                        return 1
+                    case "/quit" | "/exit" | "/q":
+                        return None
+                    case "/list" | "/history" | "/h":
+                        terminal.history(session)
+                        return 0
+                    case "/compact" | "/z":
+                        try:
+                            if agent.compact() is None:
+                                terminal.report("compaction", "No history available to compact.")
+                            return 0
+                        except KeyboardInterrupt:
+                            terminal.error("Compaction interrupted; history preserved.")
+                            return 130
+                        except Exception as error:
+                            terminal.error(f"Compaction failed: {type(error).__name__}: {error}")
+                            return 1
                 # 单轮运行
                 outcome = agent.run(prompt)
                 terminal.outcome(outcome)
@@ -174,7 +183,8 @@ def main(argv: list[str] | None = None) -> int:
 
             # 命令行指定 prompt 单轮运行
             if args.prompt is not None:
-                return run(args.prompt)
+                status = run(args.prompt)
+                return 0 if status is None else status
 
             # 交互式多轮运行
             terminal.intro()
@@ -184,13 +194,8 @@ def main(argv: list[str] | None = None) -> int:
                 except (EOFError, KeyboardInterrupt):
                     terminal.newline()
                     return 0
-                command = prompt.strip()
-                if command in {"/quit", "/exit", "/q"}:
+                if run(prompt) is None:
                     return 0
-                elif command in {"/list", "/history", "/h"}:
-                    terminal.history(session)
-                elif command:
-                    run(prompt)  # 运行 Agent
 
     except ValidationError as error:  # 配置验证失败
         for detail in error.errors(include_input=False, include_url=False):
