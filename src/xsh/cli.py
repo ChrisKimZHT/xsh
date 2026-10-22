@@ -38,7 +38,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--workspace", type=Path, help="File-tool root; defaults to current directory")
     sessions = result.add_mutually_exclusive_group()
     sessions.add_argument("--session", type=Path, help="Create a new JSONL file at this path")
-    sessions.add_argument("--resume", type=Path, help="Resume an existing JSONL session")
+    sessions.add_argument("--resume", type=Path, nargs="?", const=True, help="Resume a JSONL session; omit the path for the most recently modified default session")
     result.add_argument("--allow-shell", action="store_true", help="Enable unsandboxed shell execution")
     result.add_argument("--verbose", action="store_true", help="Show the system prompt, reasoning, and tool results on stdout")
 
@@ -92,8 +92,23 @@ def main(argv: list[str] | None = None) -> int:
 
         # 准备会话，恢复或创建
         terminal.context_window = settings.context_window
-        if args.resume:
-            session = Session.load(args.resume)
+        if args.resume is not None:
+            resume_path = args.resume
+            if resume_path is True:  # 如果没有提供路径，则 resume 最近的会话
+                session_directory = workspace / CLI_SESSION_DIRECTORY
+                resume_path = None
+                # 找最近修改的会话文件作为恢复路径
+                latest_modified_time = -1
+                for path in sorted(session_directory.glob(f"*{CLI_SESSION_SUFFIX}")):
+                    if not path.is_file():
+                        continue
+                    modified_time = path.stat().st_mtime_ns
+                    if modified_time >= latest_modified_time:
+                        resume_path = path
+                        latest_modified_time = modified_time
+                if resume_path is None:
+                    raise ValueError(f"No sessions found in {session_directory}")
+            session = Session.load(resume_path)
             if args.workspace and workspace != session.workspace:
                 raise ValueError("Resumed session belongs to a different workspace")
             workspace = session.workspace
