@@ -19,6 +19,8 @@ class Session:
         self.workspace = workspace.resolve()
         self.messages: list[Message] = []
         self.turn_count = 0  # 从原始用户消息计数，摘要不增加轮次。
+        self.step_count = 0  # 从原始助手消息计数，摘要不增加步骤。
+        self.message_positions: list[tuple[int, int] | None] = []  # None 表示系统消息，(turn, step) 表示原始消息的轮次和步骤
         self.pending: dict[str, ToolCall] = {}  # 尚未收到结果的工具调用
         self.started: set[str] = set()          # 已记录开始执行、尚未收到结果的调用 ID
 
@@ -112,6 +114,10 @@ class Session:
         self.messages.append(message)
         if message.role == "user":
             self.turn_count += 1
+            self.step_count = 0
+        elif message.role == "assistant":
+            self.step_count += 1
+        self.message_positions.append(None if message.role == "system" else (self.turn_count, self.step_count))
         if message.tool_calls:  # 如果是工具调用，则加入待完成列表
             self.pending = {call.id: call for call in message.tool_calls}
         if message.tool_call_id:  # 如果是工具结果，则从待完成列表中移除，并从已开始列表中移除
@@ -142,6 +148,7 @@ class Session:
         """将 [1, end) 替换为摘要消息，更新内存状态"""
         self._validate_compaction(end, summary)
         self.messages[1:end] = [summary]
+        self.message_positions[1:end] = [None]
 
     def start_tool(self, call: ToolCall) -> None:
         """在执行工具前记录开始事件。"""

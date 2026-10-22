@@ -195,7 +195,7 @@ def main(argv: list[str] | None = None) -> int:
                 if command in CLI_EXIT_COMMANDS:
                     return 0
                 elif command in CLI_HISTORY_COMMANDS:
-                    terminal.history(session.messages)
+                    terminal.history(session)
                 elif command:
                     run(prompt)  # 运行 Agent
 

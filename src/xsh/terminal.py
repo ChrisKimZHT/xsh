@@ -18,7 +18,7 @@ from xsh.constants import (
     TERMINAL_REFRESH_PER_SECOND,
     TERMINAL_REQUIRED_ERROR,
 )
-from xsh.messages import Message
+from xsh.session import Session
 
 
 class _Tail:
@@ -193,9 +193,9 @@ class Terminal:
         """打印会话路径"""
         self.console.print(Text(f"Session: {path}", style="dim"))
 
-    def system_prompt(self, text: str) -> None:
-        """详细模式显示会话实际使用的完整系统提示词。"""
-        if self.verbose:
+    def system_prompt(self, text: str, *, force: bool = False) -> None:
+        """详细模式或显式查看历史时显示完整系统提示词"""
+        if self.verbose or force:
             self.console.print(Panel(Text(text), title="System prompt", title_align="left", border_style="dim"))
 
     def outcome(self, result: TurnResult) -> None:
@@ -253,13 +253,26 @@ class Terminal:
         """打印一个空行"""
         self.console.print()
 
-    def history(self, messages: list[Message]) -> None:
+    def history(self, session: Session) -> None:
         """打印会话历史"""
-        for message in messages:
+        previous_turn = None
+        for message, position in zip(session.messages, session.message_positions, strict=True):
             if message.role == "system":
-                self.system_prompt(message.content or "")
+                self.system_prompt(message.content or "", force=True)
                 continue
-            self.console.rule(Text(message.role, style="cyan"))
+            characters = "━"
+            if position is not None:
+                turn, step = position
+                title = f"Turn {turn}, step {step}, {message.role}"
+                if turn == previous_turn:
+                    characters = "─"
+                previous_turn = turn
+            else:
+                title = "Compacted summary"
+                previous_turn = None
+            heading = Text(f"{characters * 2} ", style="rule.line")
+            heading.append(title, style="cyan")
+            self.console.rule(heading, characters=characters, align="left")
             if message.reasoning_content:
                 self.console.print(Panel(Text(message.reasoning_content, style="dim"), title="Thinking", title_align="left", border_style="dim"))
             if message.content:
