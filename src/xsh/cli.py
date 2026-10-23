@@ -4,6 +4,7 @@ import argparse
 import signal
 import sys
 from datetime import datetime
+from importlib.metadata import version
 from pathlib import Path
 from uuid import uuid4
 
@@ -35,7 +36,7 @@ def _handle_sigterm(signum: int, frame: object) -> None:
 
 
 def parser() -> argparse.ArgumentParser:
-    result = argparse.ArgumentParser(description="xsh - a deliberately small, single-agent harness")
+    result = argparse.ArgumentParser(prog="xsh", description="xsh - a deliberately small, single-agent harness")
     result.add_argument("prompt", nargs="?", help="Run one task; omit for interactive mode")
     result.add_argument("--workspace", type=Path, help="File-tool root; defaults to current directory")
     sessions = result.add_mutually_exclusive_group()
@@ -45,6 +46,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--verbose", action="store_true", help="Show the system prompt, reasoning, and tool results on stdout")
     result.add_argument("--non-stop-mode", action="store_true", help="Continuously improve one task and automatically start another Turn until interrupted")
     result.add_argument("--ready-file", type=Path, help="Write a startup readiness record (boot id, PID, session) for external supervisors")
+    result.add_argument("--version", action="version", version=f"%(prog)s {version('xsh-agent')}")
 
     # 覆盖 .env 配置的命令行参数
     result.add_argument("--base-url", help="OpenAI-compatible API base URL")
