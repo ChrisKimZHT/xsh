@@ -385,34 +385,38 @@ def main(argv: list[str] | None = None) -> int:
 
             # 委派工具：子代理使用独立会话与不含 task 的工具集（避免递归、隔离上下文）。
             # 多个子任务并发执行；子代理不向终端输出，避免与主界面竞争。
-            def run_subtask(prompts: Sequence[str]) -> str:
+            def run_subtask(prompts: Sequence[str], quiet: bool = False) -> str:
                 def one(subtask: str) -> str:
-                    directory = workspace / STATE_DIRECTORY / "subtasks"
-                    sub_session = Session.create(directory / f"{uuid4().hex}.jsonl", workspace, "")
-                    sub_tools = ToolRegistry.default(
-                        workspace, settings, record=sub_session.record, allow_shell=args.allow_shell,
-                        current_todos=lambda: sub_session.todos, memory_store=memory_store, skills_library=skills_library,
-                    )
-                    sub_session.update_system_prompt(build_prompt(
-                        workspace, model=settings.model, tools=sub_tools, non_stop_mode=False,
-                        memory=memory_store.render(), skills=skills_library.render_index(),
-                    ))
-                    sub_agent = Agent(model=model, session=sub_session, tools=sub_tools, max_steps=settings.max_steps, report=lambda kind, text: None)
-                    result = sub_agent.run(subtask)
-                    return f"Subagent: {result.status} ({result.steps} step(s))\n{result.text or result.error or '(no output)'}"
+                    try:
+                        directory = workspace / STATE_DIRECTORY / "subtasks"
+                        sub_session = Session.create(directory / f"{uuid4().hex}.jsonl", workspace, "")
+                        sub_tools = ToolRegistry.default(
+                            workspace, settings, record=sub_session.record, allow_shell=args.allow_shell,
+                            current_todos=lambda: sub_session.todos, memory_store=memory_store, skills_library=skills_library,
+                        )
+                        sub_session.update_system_prompt(build_prompt(
+                            workspace, model=settings.model, tools=sub_tools, non_stop_mode=False,
+                            memory=memory_store.render(), skills=skills_library.render_index(),
+                        ))
+                        sub_agent = Agent(model=model, session=sub_session, tools=sub_tools, max_steps=settings.max_steps, report=lambda kind, text: None)
+                        result = sub_agent.run(subtask)
+                        return f"Subagent: {result.status} ({result.steps} step(s))\n{result.text or result.error or '(no output)'}"
+                    except Exception as error:  # noqa: BLE001 —— 单个子任务失败不应影响其它子任务
+                        return f"Subagent error: {type(error).__name__}: {error}"
 
                 if len(prompts) == 1:
                     reports = [one(prompts[0])]
                 else:
                     with ThreadPoolExecutor(max_workers=len(prompts)) as executor:
                         reports = list(executor.map(one, prompts))
-                terminal.report("subtask", f"{len(reports)} subagent(s) finished")
+                if not quiet:  # 后台线程调用时保持安静，避免与主界面竞争
+                    terminal.report("subtask", f"{len(reports)} subagent(s) finished")
                 if len(reports) == 1:
                     return reports[0]
                 return "\n\n".join(f"[{index + 1}] {report}" for index, report in enumerate(reports))
 
             # 后台子任务：立即返回句柄，由 task_status 轮询。
-            jobs = BackgroundJobs(run_subtask)
+            jobs = BackgroundJobs(lambda prompts: run_subtask(prompts, quiet=True))
 
             tools.add(TaskTools(run_subtask, start=jobs.start, status=jobs.status).definitions())
 
