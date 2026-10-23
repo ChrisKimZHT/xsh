@@ -4,6 +4,8 @@ import argparse
 import shutil
 import signal
 import sys
+from collections.abc import Sequence
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from importlib.metadata import version
 from pathlib import Path
@@ -218,16 +220,26 @@ def main(argv: list[str] | None = None) -> int:
             model = OpenAIModel(client, settings.model, settings.max_tokens)
 
             # 委派工具：子代理使用独立会话与不含 task 的工具集（避免递归、隔离上下文）。
-            def run_subtask(prompt: str) -> str:
-                directory = workspace / STATE_DIRECTORY / "subtasks"
-                sub_session = Session.create(directory / f"{uuid4().hex}.jsonl", workspace, "")
-                sub_tools = ToolRegistry.default(workspace, settings, record=sub_session.record, allow_shell=args.allow_shell)
-                sub_session.update_system_prompt(build_prompt(workspace, model=settings.model, tools=sub_tools, non_stop_mode=False))
-                sub_agent = Agent(model=model, session=sub_session, tools=sub_tools, max_steps=settings.max_steps, report=lambda kind, text: None)
-                result = sub_agent.run(prompt)
-                report = f"Subagent: {result.status} ({result.steps} step(s))\n{result.text or result.error or '(no output)'}"
-                terminal.report("subtask", f"Subagent finished: {result.status}")
-                return report
+            # 多个子任务并发执行；子代理不向终端输出，避免与主界面竞争。
+            def run_subtask(prompts: Sequence[str]) -> str:
+                def one(subtask: str) -> str:
+                    directory = workspace / STATE_DIRECTORY / "subtasks"
+                    sub_session = Session.create(directory / f"{uuid4().hex}.jsonl", workspace, "")
+                    sub_tools = ToolRegistry.default(workspace, settings, record=sub_session.record, allow_shell=args.allow_shell)
+                    sub_session.update_system_prompt(build_prompt(workspace, model=settings.model, tools=sub_tools, non_stop_mode=False))
+                    sub_agent = Agent(model=model, session=sub_session, tools=sub_tools, max_steps=settings.max_steps, report=lambda kind, text: None)
+                    result = sub_agent.run(subtask)
+                    return f"Subagent: {result.status} ({result.steps} step(s))\n{result.text or result.error or '(no output)'}"
+
+                if len(prompts) == 1:
+                    reports = [one(prompts[0])]
+                else:
+                    with ThreadPoolExecutor(max_workers=len(prompts)) as executor:
+                        reports = list(executor.map(one, prompts))
+                terminal.report("subtask", f"{len(reports)} subagent(s) finished")
+                if len(reports) == 1:
+                    return reports[0]
+                return "\n\n".join(f"[{index + 1}] {report}" for index, report in enumerate(reports))
 
             tools.add(TaskTools(run_subtask).definitions())
 

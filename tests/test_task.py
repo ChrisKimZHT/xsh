@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from xsh.config import Settings
 from xsh.messages import ToolCall
@@ -16,12 +17,24 @@ def _settings() -> Settings:
     return Settings(base_url="https://api.example/v1", model="m", api_key="k")
 
 
-def test_delegate_forwards_prompt_and_returns_report() -> None:
-    seen: list[str] = []
-    tools = TaskTools(lambda prompt: seen.append(prompt) or f"report for {prompt}")
-    out = tools.delegate(TaskArgs(prompt="do research"))
-    assert seen == ["do research"]
-    assert out == "report for do research"
+def test_delegate_forwards_single_and_multiple_prompts() -> None:
+    seen: list[list[str]] = []
+
+    def run(prompts) -> str:
+        seen.append(list(prompts))
+        return f"reports for {list(prompts)}"
+
+    tools = TaskTools(run)
+    assert tools.delegate(TaskArgs(prompt="one")) == "reports for ['one']"
+    assert tools.delegate(TaskArgs(prompts=["a", "b"])) == "reports for ['a', 'b']"
+    assert seen == [["one"], ["a", "b"]]
+
+
+def test_targets_prefers_prompts_and_requires_something() -> None:
+    assert TaskArgs(prompts=["a", "", "b"]).targets() == ["a", "b"]
+    assert TaskArgs(prompt="  solo  ").targets() == ["solo"]
+    with pytest.raises(ValidationError):
+        TaskArgs()
 
 
 def test_default_registry_has_no_task_tool(tmp_path: Path) -> None:
@@ -33,7 +46,7 @@ def test_default_registry_has_no_task_tool(tmp_path: Path) -> None:
 def test_registry_add_and_duplicate_guard(tmp_path: Path) -> None:
     session = Session.create(tmp_path / "s.jsonl", tmp_path, "system")
     registry = ToolRegistry.default(tmp_path, _settings(), record=session.record)
-    registry.add(TaskTools(lambda prompt: "ok").definitions())
+    registry.add(TaskTools(lambda prompts: "ok").definitions())
     assert "task" in registry.tools
     with pytest.raises(ValueError, match="Duplicate tool name"):
         registry.add([Tool("read", "d", None, lambda args: "")])
@@ -42,8 +55,8 @@ def test_registry_add_and_duplicate_guard(tmp_path: Path) -> None:
 def test_task_executes_through_registry(tmp_path: Path) -> None:
     session = Session.create(tmp_path / "s.jsonl", tmp_path, "system")
     registry = ToolRegistry.default(tmp_path, _settings(), record=session.record)
-    registry.add(TaskTools(lambda prompt: f"subagent says: {prompt}").definitions())
+    registry.add(TaskTools(lambda prompts: f"subagent says: {', '.join(prompts)}").definitions())
 
-    call = ToolCall(id="1", name="task", arguments=json.dumps({"prompt": "hello", "label": "x"}))
+    call = ToolCall(id="1", name="task", arguments=json.dumps({"prompts": ["x", "y"], "label": "l"}))
     result = registry.execute(call)
-    assert result.content == "subagent says: hello"
+    assert result.content == "subagent says: x, y"
