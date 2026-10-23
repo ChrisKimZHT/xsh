@@ -92,6 +92,17 @@ def test_list_tools_prints_names(tmp_path: Path, capsys: pytest.CaptureFixture, 
     assert "todo\t" in out
 
 
+def test_list_skills(tmp_path: Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("XSH_BASE_URL", "https://example/v1")
+    monkeypatch.setenv("XSH_MODEL", "m")
+    monkeypatch.setenv("XSH_API_KEY", "k")
+    directory = tmp_path / ".xsh" / "skills"
+    directory.mkdir(parents=True)
+    (directory / "release.md").write_text("# Release\n\nSteps.", encoding="utf-8")
+    assert main(["--list-skills", "--workspace", str(tmp_path)]) == 0
+    assert "- release: Release" in capsys.readouterr().out
+
+
 def test_resolve_session_by_name_prefix(tmp_path: Path) -> None:
     import os
 

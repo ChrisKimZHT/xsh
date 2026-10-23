@@ -202,6 +202,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--list-sessions", action="store_true", help="List saved sessions for the workspace and exit")
     result.add_argument("--dump-prompt", action="store_true", help="Print the assembled system prompt and exit")
     result.add_argument("--list-tools", action="store_true", help="List the available tools and exit")
+    result.add_argument("--list-skills", action="store_true", help="List the workspace skills and exit")
     result.add_argument("--compact-session", nargs="?", const=True, type=Path, help="Offline-compact a session file (default: most recent) and exit")
     result.add_argument("--print", action="store_true", dest="print_mode", help="Run a prompt without the interactive UI and print the result")
 
@@ -271,7 +272,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
 
     # 打印系统提示词 / 工具清单同样不需要终端；便于脚本化检查。
-    if args.dump_prompt or args.list_tools:
+    if args.dump_prompt or args.list_tools or args.list_skills:
         try:
             workspace = (args.workspace or Path.cwd()).resolve(strict=True)
             settings = _settings_from_args(args)
@@ -286,6 +287,8 @@ def main(argv: list[str] | None = None) -> int:
             if args.list_tools:
                 for name, tool in sorted(tools.tools.items()):
                     print(f"{name}\t{tool.description}")
+            elif args.list_skills:
+                print(skills_library.render_index() or "(no skills)")
             else:
                 print(build_prompt(workspace, model=settings.model, tools=tools, non_stop_mode=args.non_stop_mode, memory=memory_store.render(), skills=skills_library.render_index()))
             return 0
