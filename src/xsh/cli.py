@@ -239,7 +239,7 @@ def main(argv: list[str] | None = None) -> int:
                     return 1
 
             # ========================
-            # 阶段 5：进入单轮或多轮运行
+            # 阶段 7：进入单轮或多轮运行
             # ========================
             if non_stop_mode:
                 if args.prompt is not None:
