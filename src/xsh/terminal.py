@@ -31,17 +31,22 @@ _INTRO = """\
 - `/find <text>` — Search the conversation for text
 - `/todos` — Show the persisted task list
 - `/memory` — Show the workspace long-term memory
-- `/reload` — Re-read memory and skills from disk
+- `/reload` — Re-read memory, skills and permissions from disk
 - `/skills` — List available workspace skills
 - `/tasks` — List background subtasks
 - `/config` — Show the effective runtime configuration
 - `/usage` — Show cumulative token usage
 - `/stats` — Show a session overview (turns, messages, tools, todos)
 - `/sessions` — List saved sessions in this workspace
-- `/export [file]` — Write the conversation to a Markdown transcript
+- `/export [file]` — Write the conversation (plus todos/memory) to a Markdown transcript
 - `/help` — Show this help
 - `/compact` — Summarize older context and retain recent messages
 - `/quit` — Quit xsh
+
+### Config files (in the workspace)
+- `.xsh/memory.md` — long-term memory; `.xsh/skills/` — reusable skill packs
+- `.xsh/hooks.json` — tool-use hooks (requires shell); `.xsh/mcp.json` — MCP servers
+- `.xsh/permissions.json` — permission policy (`deny_paths`/`deny_commands`/`deny_urls`)
 """
 
 
