@@ -507,7 +507,7 @@ def main(argv: list[str] | None = None) -> int:
                         terminal.report("todos", format_todos(session.todos) if session.todos else "No todos on record.")
                         return 0
                     case "/memory" | "/mem":
-                        terminal.report("memory", memory_store.render() or "(no memory entries)")
+                        terminal.report("memory", memory_store.render_numbered() or "(no memory entries)")
                         return 0
                     case "/reload":
                         memory_store.reload()

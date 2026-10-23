@@ -42,7 +42,7 @@ class MemoryTools:
         if args.remove:
             self.store.remove(args.remove)
         self.store.save()
-        text = self.store.render() or "(no memory entries)"
+        text = self.store.render_numbered() or "(no memory entries)"
         if self.report:
             self.report("memory", text)
         return "Memory updated:\n" + text

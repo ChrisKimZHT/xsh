@@ -20,6 +20,7 @@ def test_store_roundtrip_and_remove(tmp_path: Path) -> None:
     store = MemoryStore(tmp_path / "memory.md")
     store.add(["hello world", "- second note"])
     store.save()
+    assert store.render_numbered() == "1. hello world\n2. second note"
 
     reloaded = MemoryStore(tmp_path / "memory.md")
     assert reloaded.entries == ["hello world", "second note"]
@@ -43,7 +44,7 @@ def test_tool_add_replace_remove(tmp_path: Path) -> None:
     tools = MemoryTools(store)
 
     out = tools.update(MemoryArgs(add=["a", "b"]))
-    assert "- a" in out and "- b" in out
+    assert "1. a" in out and "2. b" in out
     tools.update(MemoryArgs(replace=["c"]))
     assert store.entries == ["c"]
     tools.update(MemoryArgs(remove=[1]))

@@ -66,3 +66,7 @@ class MemoryStore:
 
     def render(self) -> str:
         return "\n".join(f"- {entry}" for entry in self.entries)
+
+    def render_numbered(self) -> str:
+        """带 1-based 序号的渲染，便于用 remove 删除指定条目。"""
+        return "\n".join(f"{index}. {entry}" for index, entry in enumerate(self.entries, start=1))
