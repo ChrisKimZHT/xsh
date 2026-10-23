@@ -84,6 +84,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--model", help="Provider model identifier")
     result.add_argument("--api-key", help="Provider API key")
     result.add_argument("--max-steps", type=int)
+    result.add_argument("--max-turns", type=int, help="Maximum number of Turns in non-stop mode before stopping")
     result.add_argument("--max-tokens", type=int, help="Maximum output tokens per model request")
     result.add_argument("--context-window", type=int, help="Model context window in tokens, will override by automatic discovery")
     result.add_argument("--auto-compact", action=argparse.BooleanOptionalAction, default=None, help="Automatically compact context before model requests")
@@ -143,6 +144,7 @@ def main(argv: list[str] | None = None) -> int:
             model=args.model,
             api_key=args.api_key,
             max_steps=args.max_steps,
+            max_turns=args.max_turns,
             max_tokens=args.max_tokens,
             context_window=args.context_window,
             auto_compact=args.auto_compact,
@@ -352,6 +354,7 @@ def main(argv: list[str] | None = None) -> int:
                         agent, task, terminal.outcome,
                         resumed=session.turn_count > session.non_stop_task["initial_turn"],
                         report=terminal.report,
+                        max_turns=settings.max_turns,
                     )
                 else:
                     terminal.intro()
@@ -362,7 +365,7 @@ def main(argv: list[str] | None = None) -> int:
                         return 130
                 session.non_stop_task = {"prompt": task.prompt, "continuation": task.continuation, "initial_turn": session.turn_count}
                 session.record("non_stop_task", session.non_stop_task)
-                return run_non_stop(agent, task, terminal.outcome, report=terminal.report)
+                return run_non_stop(agent, task, terminal.outcome, report=terminal.report, max_turns=settings.max_turns)
 
             # 命令行单轮运行
             if args.prompt is not None:

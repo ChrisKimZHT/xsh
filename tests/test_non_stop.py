@@ -75,6 +75,12 @@ def test_cancelled_stops(no_sleep: list[float]) -> None:
     assert _run(agent) == 130
 
 
+def test_max_turns_stops_cleanly(no_sleep: list[float]) -> None:
+    agent = _FakeAgent([TurnResult("completed", steps=1) for _ in range(5)])
+    assert run_non_stop(agent, NonStopTask("task"), lambda result: None, max_turns=2) == 0
+    assert len(agent.prompts) == 2
+
+
 def test_is_transient_error_classification() -> None:
     import httpx
     from openai import APIStatusError, APITimeoutError

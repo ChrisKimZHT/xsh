@@ -64,20 +64,27 @@ def run_non_stop(
     *,
     resumed: bool = False,
     report: Callable[[str, str], None] | None = None,
+    max_turns: int | None = None,
 ) -> int:
     """Continue model-ended Turns until interruption or repeated failure.
 
     暂时性故障（限流 429、超时、连接中断、5xx）不会结束进程，而是退避后重试；
     其它非暂时性错误也不会立即结束进程，而是有限次重试后续 Turn，避免偶发错误
     打断长时间无人值守运行。只有持续失败才退出，交给监督脚本处理。
+    max_turns 给出可选的上限：达到后正常停止（返回 0）。
     """
     notify = report or (lambda kind, text: None)
     prompt = task.next_prompt if resumed else task.prompt
     backoff = _INITIAL_BACKOFF_SECONDS
     retries = 0
     failures = 0
+    turns = 0
     try:
         while True:
+            if max_turns is not None and turns >= max_turns:
+                notify("retry", f"Reached max-turns={max_turns}; stopping non-stop mode.")
+                return 0
+            turns += 1
             result = agent.run(prompt)
             outcome(result)
             if result.status == "cancelled":

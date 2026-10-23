@@ -67,3 +67,12 @@ def test_overrides_win_over_environment(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setenv("XSH_API_KEY", "env-key")
     settings = Settings.from_env(model="cli-model", max_steps=None)
     assert settings.model == "cli-model"
+
+
+def test_max_turns_default_and_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert Settings(**_base()).max_turns is None
+    monkeypatch.setenv("XSH_BASE_URL", "https://env.example/v1")
+    monkeypatch.setenv("XSH_MODEL", "env-model")
+    monkeypatch.setenv("XSH_API_KEY", "env-key")
+    monkeypatch.setenv("XSH_MAX_TURNS", "3")
+    assert Settings.from_env().max_turns == 3

@@ -13,6 +13,7 @@ class Settings(BaseModel):
     model: str = Field(min_length=1)
     api_key: SecretStr
     max_steps: int = Field(default=100000, ge=1)
+    max_turns: int | None = Field(default=None, ge=1, description="Optional cap on non-stop continuation turns.")
     max_tokens: int = Field(default=65536, ge=1)
     context_window: int | None = Field(default=None, ge=1)
     auto_compact: bool = True
