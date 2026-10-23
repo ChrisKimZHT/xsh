@@ -10,6 +10,47 @@ from xsh.messages import Message, ToolCall
 _FORMAT_VERSION = 1
 
 
+def _read_events(path: Path) -> list[dict[str, Any]]:
+    """逐行读取并解析会话事件，同时修复末尾不完整记录。
+
+    JSONL 记录写成 "行 + \\n"，且 JSON 内部换行会被转义，因此每条完整记录占用一行。
+    若进程在写入最后一条记录时被中断，末尾会留下半行 JSON。这里会丢弃并**物理截断**
+    该残片，避免它在下次追加后不再是末行、导致会话无法恢复。中间位置的损坏仍会报错。
+    """
+    data = path.read_bytes()
+    if not data:
+        return []
+
+    chunks = data.split(b"\n")
+    trailing = b""
+    if chunks[-1] == b"":
+        chunks.pop()  # 文件以换行结尾，split 产生的空片段
+    else:
+        trailing = chunks.pop()  # 末尾没有换行符，可能是不完整记录
+
+    events: list[dict[str, Any]] = []
+    for line in chunks:
+        if not line.strip():
+            continue
+        try:
+            events.append(json.loads(line))
+        except ValueError:
+            raise ValueError("Corrupt session event in a complete line") from None
+
+    if trailing and trailing.strip():
+        try:
+            events.append(json.loads(trailing))
+        except ValueError:
+            # 不完整残片：从文件中截断它。
+            with path.open("r+b") as handle:
+                handle.truncate(len(data) - len(trailing))
+        else:
+            # 恰好缺少结尾换行符的完整记录：补回换行符。
+            with path.open("ab") as handle:
+                handle.write(b"\n")
+    return events
+
+
 class Session:
     """会话对象，在对象中维护会话状态，同时用 JSONL 保存会话"""
 
@@ -40,10 +81,10 @@ class Session:
     @classmethod
     def load(cls, path: Path) -> "Session":
         """恢复会话，并为中断的工具调用补齐错误结果"""
-        # 读取会话 JSONL 文件
+        # 读取会话 JSONL 文件。进程可能在校验最后一行写入时被中断，因此允许
+        # 丢弃末尾一条不完整记录；中间位置的损坏仍然视为错误。
         path = path.resolve()
-        with path.open(encoding="utf-8") as file:
-            events = [json.loads(line) for line in file]
+        events = _read_events(path)
 
         # 读取并检查会话头
         if not events or events[0].get("type") != "session":
