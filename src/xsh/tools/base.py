@@ -41,8 +41,16 @@ class Tool:
 
 
 def bounded(text: str, limit: int = _OUTPUT_LIMIT) -> str:
+    """把文本裁剪到不超过 limit 个字符，并在截断时附加提示。
+
+    当 limit 小于提示语长度时，绝不能返回超过 limit 的内容。
+    """
     marker = "\n[Output truncated; request a smaller range or narrower search.]"
-    return text if len(text) <= limit else text[: limit - len(marker)] + marker
+    if len(text) <= limit:
+        return text
+    if limit <= len(marker):
+        return marker[:limit]
+    return text[: limit - len(marker)] + marker
 
 
 class ToolRegistry:
