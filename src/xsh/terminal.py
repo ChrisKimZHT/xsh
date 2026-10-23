@@ -31,6 +31,7 @@ _INTRO = """\
 - `/todos` — Show the persisted task list
 - `/usage` — Show cumulative token usage
 - `/sessions` — List saved sessions in this workspace
+- `/export [file]` — Write the conversation to a Markdown transcript
 - `/help` — Show this help
 - `/compact` — Summarize older context and retain recent messages
 - `/quit` — Quit xsh
@@ -152,6 +153,9 @@ class Terminal:
             self.console.print(Panel(Text(text), title="Todos", title_align="left", border_style="magenta", expand=False))
 
         elif kind == "subtask":  # 子代理进度
+            self.console.print(Text(text, style="dim"))
+
+        elif kind == "export":  # /export 结果
             self.console.print(Text(text, style="dim"))
 
         elif kind == "find":  # /find 用法提示等

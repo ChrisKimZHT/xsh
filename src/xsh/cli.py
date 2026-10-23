@@ -27,6 +27,7 @@ from xsh.terminal import Terminal
 from xsh.tools.base import ToolRegistry
 from xsh.tools.task import TaskTools
 from xsh.tools.todo import format_todos
+from xsh.transcript import export_transcript
 
 _SESSION_DIRECTORY = Path(STATE_DIRECTORY) / "sessions"
 
@@ -349,6 +350,15 @@ def main(argv: list[str] | None = None) -> int:
                         return 0
                     case "/sessions":
                         terminal.sessions(list_sessions(workspace / _SESSION_DIRECTORY))
+                        return 0
+                    case _ if prompt.strip().startswith("/export"):
+                        target = prompt.strip()[len("/export"):].strip() or None
+                        try:
+                            path = export_transcript(session, workspace, target)
+                        except (OSError, ValueError) as error:
+                            terminal.error(f"Export failed: {error}")
+                            return 1
+                        terminal.report("export", f"Wrote transcript to {path}")
                         return 0
                     case _ if prompt.strip().startswith("/find"):
                         needle = prompt.strip()[len("/find"):].strip()
