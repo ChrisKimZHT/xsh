@@ -80,11 +80,13 @@ class ToolRegistry:
         allow_shell: bool = False,
         current_todos: Callable[[], list[dict]] | None = None,
         memory_store: object | None = None,
+        skills_library: object | None = None,
     ) -> "ToolRegistry":
         """准备默认工具列表"""
         from xsh.tools.files import FileTools
         from xsh.tools.memory import MemoryTools
         from xsh.tools.shell import ShellTools
+        from xsh.tools.skills import SkillTools
         from xsh.tools.todo import TodoTools
         from xsh.tools.web import WebTools
 
@@ -93,6 +95,8 @@ class ToolRegistry:
         definitions.extend(TodoTools(record=record, report=report, current=current_todos).definitions())
         if memory_store is not None:
             definitions.extend(MemoryTools(memory_store, report=report).definitions())
+        if skills_library is not None:
+            definitions.extend(SkillTools(skills_library).definitions())
         if allow_shell:
             definitions.extend(ShellTools(workspace).definitions())
         return cls(definitions)

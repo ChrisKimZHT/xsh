@@ -30,6 +30,7 @@ _INTRO = """\
 - `/find <text>` — Search the conversation for text
 - `/todos` — Show the persisted task list
 - `/memory` — Show the workspace long-term memory
+- `/skills` — List available workspace skills
 - `/usage` — Show cumulative token usage
 - `/stats` — Show a session overview (turns, messages, tools, todos)
 - `/sessions` — List saved sessions in this workspace
@@ -157,6 +158,10 @@ class Terminal:
         elif kind == "memory":  # 长期记忆
             self._stop_tool()
             self.console.print(Panel(Text(text), title="Memory", title_align="left", border_style="blue", expand=False))
+
+        elif kind == "skills":  # 技能清单
+            self._stop_tool()
+            self.console.print(Panel(Text(text), title="Skills", title_align="left", border_style="blue", expand=False))
 
         elif kind == "subtask":  # 子代理进度
             self.console.print(Text(text, style="dim"))

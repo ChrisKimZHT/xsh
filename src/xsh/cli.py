@@ -25,6 +25,7 @@ from xsh.non_stop import NonStopTask, run_non_stop
 from xsh.prompt import build_prompt
 from xsh.readiness import build_record, new_boot_id, write_ready_file
 from xsh.session import Session
+from xsh.skills import SkillLibrary
 from xsh.terminal import Terminal
 from xsh.tools.base import ToolRegistry
 from xsh.tools.task import TaskTools
@@ -176,12 +177,13 @@ def main(argv: list[str] | None = None) -> int:
             workspace = (args.workspace or Path.cwd()).resolve(strict=True)
             settings = _settings_from_args(args)
             memory_store = MemoryStore(workspace / STATE_DIRECTORY / "memory.md")
-            tools = ToolRegistry.default(workspace, settings, allow_shell=args.allow_shell, memory_store=memory_store)
+            skills_library = SkillLibrary(workspace / STATE_DIRECTORY / "skills")
+            tools = ToolRegistry.default(workspace, settings, allow_shell=args.allow_shell, memory_store=memory_store, skills_library=skills_library)
             if args.list_tools:
                 for name, tool in sorted(tools.tools.items()):
                     print(f"{name}\t{tool.description}")
             else:
-                print(build_prompt(workspace, model=settings.model, tools=tools, non_stop_mode=args.non_stop_mode, memory=memory_store.render()))
+                print(build_prompt(workspace, model=settings.model, tools=tools, non_stop_mode=args.non_stop_mode, memory=memory_store.render(), skills=skills_library.render_index()))
             return 0
         except (ValidationError, OSError, ValueError) as error:
             print(f"xsh: {error}", file=sys.stderr)
@@ -256,7 +258,11 @@ def main(argv: list[str] | None = None) -> int:
         # 阶段 3：注册基础工具
         # ==============================
         memory_store = MemoryStore(workspace / STATE_DIRECTORY / "memory.md")
-        tools = ToolRegistry.default(workspace, settings, record=session.record, report=terminal.report, allow_shell=args.allow_shell, current_todos=lambda: session.todos, memory_store=memory_store)
+        skills_library = SkillLibrary(workspace / STATE_DIRECTORY / "skills")
+        tools = ToolRegistry.default(
+            workspace, settings, record=session.record, report=terminal.report, allow_shell=args.allow_shell,
+            current_todos=lambda: session.todos, memory_store=memory_store, skills_library=skills_library,
+        )
         non_stop_mode = args.non_stop_mode or session.non_stop_task is not None
 
         # ==============================
@@ -283,8 +289,14 @@ def main(argv: list[str] | None = None) -> int:
                 def one(subtask: str) -> str:
                     directory = workspace / STATE_DIRECTORY / "subtasks"
                     sub_session = Session.create(directory / f"{uuid4().hex}.jsonl", workspace, "")
-                    sub_tools = ToolRegistry.default(workspace, settings, record=sub_session.record, allow_shell=args.allow_shell, current_todos=lambda: sub_session.todos, memory_store=memory_store)
-                    sub_session.update_system_prompt(build_prompt(workspace, model=settings.model, tools=sub_tools, non_stop_mode=False, memory=memory_store.render()))
+                    sub_tools = ToolRegistry.default(
+                        workspace, settings, record=sub_session.record, allow_shell=args.allow_shell,
+                        current_todos=lambda: sub_session.todos, memory_store=memory_store, skills_library=skills_library,
+                    )
+                    sub_session.update_system_prompt(build_prompt(
+                        workspace, model=settings.model, tools=sub_tools, non_stop_mode=False,
+                        memory=memory_store.render(), skills=skills_library.render_index(),
+                    ))
                     sub_agent = Agent(model=model, session=sub_session, tools=sub_tools, max_steps=settings.max_steps, report=lambda kind, text: None)
                     result = sub_agent.run(subtask)
                     return f"Subagent: {result.status} ({result.steps} step(s))\n{result.text or result.error or '(no output)'}"
@@ -302,7 +314,7 @@ def main(argv: list[str] | None = None) -> int:
             tools.add(TaskTools(run_subtask).definitions())
 
             # 系统提示词在工具集完整后构建，确保所有工具指导文案都进入提示词。
-            system_prompt = build_prompt(workspace, model=settings.model, tools=tools, non_stop_mode=non_stop_mode, memory=memory_store.render())
+            system_prompt = build_prompt(workspace, model=settings.model, tools=tools, non_stop_mode=non_stop_mode, memory=memory_store.render(), skills=skills_library.render_index())
             session.update_system_prompt(system_prompt)
             terminal.session(session.path)
             terminal.system_prompt(session.messages[0].content or "")
@@ -363,6 +375,9 @@ def main(argv: list[str] | None = None) -> int:
                         return 0
                     case "/memory" | "/mem":
                         terminal.report("memory", memory_store.render() or "(no memory entries)")
+                        return 0
+                    case "/skills":
+                        terminal.report("skills", skills_library.render_index() or "(no skills)")
                         return 0
                     case "/usage" | "/u":
                         terminal.usage(session)
