@@ -395,6 +395,10 @@ class Terminal:
         text.append(f"\nTool calls: {tool_calls}", style="dim")
         text.append(f"\nTodos: {len(session.todos)}", style="dim")
         text.append(f"\nTotal tokens: {totals['total_tokens']:,}", style="dim")
+        try:
+            text.append(f"\nSession file: {session.path.stat().st_size:,} bytes", style="dim")
+        except OSError:
+            pass
         self.console.print(Panel(text, title="Session stats", title_align="left", border_style="cyan", expand=False))
 
     def sessions(self, entries: list[tuple[float, int, str]], current: str | None = None) -> None:
