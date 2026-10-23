@@ -92,6 +92,8 @@ def test_sessions_renders_entries(terminal: tuple[Terminal, io.StringIO]) -> Non
     assert "No saved sessions" in buffer.getvalue()
     term.sessions([(1_700_000_000_000_000_000, 123, "a.jsonl")])
     assert "a.jsonl" in buffer.getvalue()
+    term.sessions([(1_700_000_000_000_000_000, 123, "cur.jsonl")], current="cur.jsonl")
+    assert "*" in buffer.getvalue()
 
 
 def test_stats_renders_overview(terminal: tuple[Terminal, io.StringIO], tmp_path: Path) -> None:

@@ -555,7 +555,7 @@ def main(argv: list[str] | None = None) -> int:
                         terminal.intro()
                         return 0
                     case "/sessions":
-                        terminal.sessions(list_sessions(workspace / _SESSION_DIRECTORY))
+                        terminal.sessions(list_sessions(workspace / _SESSION_DIRECTORY), current=session.path.name)
                         return 0
                     case _ if prompt.strip().startswith("/export"):
                         target = prompt.strip()[len("/export"):].strip() or None

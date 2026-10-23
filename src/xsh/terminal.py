@@ -388,13 +388,14 @@ class Terminal:
         text.append(f"\nTotal tokens: {totals['total_tokens']:,}", style="dim")
         self.console.print(Panel(text, title="Session stats", title_align="left", border_style="cyan", expand=False))
 
-    def sessions(self, entries: list[tuple[float, int, str]]) -> None:
-        """打印工作区内的会话列表 (mtime_ns, size, name)。"""
+    def sessions(self, entries: list[tuple[float, int, str]], current: str | None = None) -> None:
+        """打印工作区内的会话列表 (mtime_ns, size, name)；current 为当前会话文件名。"""
         if not entries:
             self.console.print(Text("No saved sessions.", style="dim"))
             return
         self.console.print(Text("Saved sessions (newest first):", style="cyan"))
         for mtime_ns, size, name in entries:
             when = datetime.fromtimestamp(mtime_ns / 1e9).strftime("%Y-%m-%d %H:%M:%S")
-            self.console.print(Text(f"  {when}  {size:>10}  {name}", style="dim"))
+            marker = "*" if name == current else " "
+            self.console.print(Text(f" {marker} {when}  {size:>10}  {name}", style="dim"))
 
