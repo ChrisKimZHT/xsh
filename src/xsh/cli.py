@@ -53,7 +53,12 @@ def main(argv: list[str] | None = None) -> int:
     # 阶段 1：解析参数、加载配置、初始化终端和工作目录
     # ============================================
     args = parser().parse_args(argv)
+    # 优先读取当前目录，再由安装目录补充；已有环境变量保持不变。
     load_dotenv(Path.cwd() / ".env", override=False)
+    install_directory = Path(__file__).resolve().parent
+    if install_directory.parent.name == "src":
+        install_directory = install_directory.parent.parent
+    load_dotenv(install_directory / ".env", override=False)
 
     # 仅支持终端输出；重定向或管道无法渲染动态界面，直接报错退出。
     try:
