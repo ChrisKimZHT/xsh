@@ -285,3 +285,7 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, ValueError, KeyError) as error:
         terminal.error(f"xsh: {error}")
         return 2
+
+    except KeyboardInterrupt:  # 启动阶段收到 Ctrl+C 或 SIGTERM：干净退出，不打印栈
+        terminal.newline()
+        return 130
