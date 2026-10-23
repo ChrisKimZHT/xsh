@@ -119,3 +119,29 @@ xsh "1 + 1 = ?"  # 单轮任务模式
 | `/help`         | 显示帮助                                         |
 | `/quit`         | 退出 xsh                                         |
 
+### 配置与状态文件
+
+以下文件均位于工作区下、默认被 `.gitignore` 忽略：
+
+| 路径                  | 用途                                             |
+| --------------------- | ------------------------------------------------ |
+| `.xsh/sessions/*.jsonl` | 会话记录（JSONL 事件流）                       |
+| `.xsh/memory.md`      | 长期记忆（`memory` 工具维护，注入系统提示词）     |
+| `.xsh/skills/*.md`    | 技能包（`skill` 工具按需加载）                    |
+| `.xsh/hooks.json`     | pre/post tool-use 钩子（需启用 shell）           |
+| `.xsh/mcp.json`       | 外部 MCP stdio 服务器定义                        |
+| `.supervisor/`        | 重启监督脚本、日志与状态（`PROGRESS.md` 等）      |
+
+### 环境变量（均可选）
+
+| 变量                     | 说明                                             |
+| ------------------------ | ------------------------------------------------ |
+| `XSH_BASE_URL` / `XSH_MODEL` / `XSH_API_KEY` | 模型端点、模型名与密钥         |
+| `XSH_MAX_STEPS`          | 单轮最大 Step 数                                 |
+| `XSH_MAX_TURNS`          | 非停机模式最多 Turn 数                           |
+| `XSH_MAX_RUN_TOKENS`     | 非停机运行 token 预算                            |
+| `XSH_SESSION_COMPACT_MB` | 恢复时超过该大小则离线压缩会话（0 关闭）         |
+| `XSH_CONTEXT_WINDOW`     | 模型上下文窗口（自动探测可覆盖）                 |
+| `XSH_AUTO_COMPACT` / `XSH_COMPACT_THRESHOLD` / `XSH_COMPACT_RETAIN_RATIO` | 自动压缩开关与阈值 |
+| `XSH_REQUEST_TIMEOUT` / `XSH_MAX_RETRIES` | 请求超时与重试次数          |
+
