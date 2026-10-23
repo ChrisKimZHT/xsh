@@ -6,10 +6,14 @@ from importlib.resources import files
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from xsh.config import STATE_DIRECTORY
+
 if TYPE_CHECKING:
     from xsh.tools.base import ToolRegistry
 
 _MAX_INSTRUCTIONS_BYTES = 128_000
+_MAX_NESTED_INSTRUCTIONS = 20
+_SKIP_DIRECTORIES = frozenset({".git", STATE_DIRECTORY, ".supervisor", ".venv", ".conda", "node_modules", "__pycache__"})
 
 
 @dataclass(frozen=True)
@@ -59,6 +63,34 @@ def build_prompt(workspace: Path, *, model: str, tools: "ToolRegistry", non_stop
         if len(data) > _MAX_INSTRUCTIONS_BYTES:
             raise ValueError(f"Root AGENTS.md exceeds {_MAX_INSTRUCTIONS_BYTES} bytes; shorten it before starting")
         sections.append(PromptSection("context:project", 1100, "Project instructions (AGENTS.md):\n\n" + data.decode("utf-8")))
+    sections.extend(_nested_instruction_sections(workspace))
     if non_stop_mode:
         sections.append(PromptSection("harness:non-stop", 1200, files("xsh").joinpath("prompts/non-stop.md").read_text(encoding="utf-8")))
     return render_prompt(sections)
+
+
+def _nested_instruction_sections(workspace: Path) -> list[PromptSection]:
+    """收集子目录中的 AGENTS.md（不含根目录），带相对路径标注并限制数量与大小。"""
+    sections: list[PromptSection] = []
+    count = 0
+    for path in sorted(workspace.rglob("AGENTS.md")):
+        relative = path.relative_to(workspace)
+        if relative.as_posix() == "AGENTS.md":
+            continue
+        if any(part in _SKIP_DIRECTORIES for part in relative.parts):
+            continue
+        if not path.is_file() or not path.resolve().is_relative_to(workspace):
+            continue
+        count += 1
+        if count > _MAX_NESTED_INSTRUCTIONS:
+            break
+        with path.open("rb") as file:
+            data = file.read(_MAX_INSTRUCTIONS_BYTES + 1)
+        if len(data) > _MAX_INSTRUCTIONS_BYTES:
+            raise ValueError(f"{relative} exceeds {_MAX_INSTRUCTIONS_BYTES} bytes; shorten it before starting")
+        sections.append(PromptSection(
+            f"context:project:{relative.as_posix()}",
+            1100 + count,
+            f"Project instructions ({relative.as_posix()}):\n\n" + data.decode("utf-8"),
+        ))
+    return sections

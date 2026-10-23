@@ -51,3 +51,22 @@ def test_render_prompt_is_deterministic() -> None:
 
     sections = [PromptSection("z", 1, "zz"), PromptSection("a", 0, "aa")]
     assert render_prompt(sections) == "aa\n\nzz"
+
+
+def test_build_prompt_includes_nested_agents_md(tmp_path: Path) -> None:
+    (tmp_path / "AGENTS.md").write_text("root rules", encoding="utf-8")
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "AGENTS.md").write_text("pkg rules", encoding="utf-8")
+
+    prompt = build_prompt(tmp_path, model="m", tools=_Tools())
+    assert "Project instructions (AGENTS.md):" in prompt
+    assert "Project instructions (pkg/AGENTS.md):" in prompt
+    assert "pkg rules" in prompt
+
+
+def test_nested_agents_md_skips_reserved_directories(tmp_path: Path) -> None:
+    hidden = tmp_path / ".xsh"
+    hidden.mkdir()
+    (hidden / "AGENTS.md").write_text("hidden rules", encoding="utf-8")
+    prompt = build_prompt(tmp_path, model="m", tools=_Tools())
+    assert "hidden rules" not in prompt
