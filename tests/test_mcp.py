@@ -4,7 +4,9 @@ import json
 import sys
 from pathlib import Path
 
-from xsh.mcp import McpClient, load_servers, start_clients
+import pytest
+
+from xsh.mcp import McpClient, McpError, load_servers, start_clients
 from xsh.messages import ToolCall
 from xsh.tools.base import ToolRegistry
 from xsh.tools.mcp import build_mcp_tools
@@ -47,6 +49,23 @@ def test_load_servers_tolerates_missing_and_invalid(tmp_path: Path) -> None:
     bad = tmp_path / "bad.json"
     bad.write_text("{not json", encoding="utf-8")
     assert load_servers(bad) == {}
+
+
+def test_read_times_out_on_silent_server(tmp_path: Path) -> None:
+    server = tmp_path / "silent.py"
+    server.write_text("import time\nwhile True:\n    time.sleep(1)\n", encoding="utf-8")
+    client = McpClient("silent", sys.executable, [str(server)], tmp_path, timeout=1)
+    client.start()
+    try:
+        with pytest.raises(McpError, match="timed out"):
+            client.initialize()
+    finally:
+        client.close()
+
+    # start_clients 也应对挂起的服务器优雅降级（跳过）。
+    config = tmp_path / "silent.json"
+    config.write_text(json.dumps({"servers": {"silent": {"command": sys.executable, "args": [str(server)]}}}), encoding="utf-8")
+    assert start_clients(load_servers(config), tmp_path) == []
 
 
 def test_client_lists_and_calls_tools(tmp_path: Path) -> None:
