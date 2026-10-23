@@ -6,7 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol
 
-from openai import APIError, APIStatusError, OpenAI
+from openai import APIConnectionError, APIError, APIStatusError, OpenAI
 
 from xsh.messages import Message, ModelResponse, ToolCall
 
@@ -117,17 +117,20 @@ class OpenAIModel:
         # ===============================
         # 阶段 2：监控流式响应，按块累积结果
         # ===============================
-        # SDK 的有限次重试耗尽后，429 继续等待重试，不结束当前 Turn。
-        # 仅重试建立请求，避免流式输出后重新请求造成重复输出；重试次数有上限，
-        # 超过上限则抛出，交由上层按暂时性故障退避重试。
+        # 仅重试“建立请求”阶段（尚未产生任何输出，重试不会造成重复输出）：
+        #   - 429 限流：等待后继续重试（SDK 自带重试耗尽之后仍继续）；
+        #   - 连接错误 / 超时：同样退避重试。
+        # 重试次数有上限，超过后抛出，交由上层按暂时性故障退避重试。
         retry_delay = 1.0
         attempts = 0
         while True:
             try:
                 stream = self.client.chat.completions.create(**request)
                 break
-            except APIStatusError as error:
-                if error.status_code != 429 or attempts >= _MAX_RATE_LIMIT_RETRIES:
+            except (APIConnectionError, APIStatusError) as error:
+                if isinstance(error, APIStatusError) and error.status_code != 429:
+                    raise
+                if attempts >= _MAX_RATE_LIMIT_RETRIES:
                     raise
                 attempts += 1
                 time.sleep(retry_delay)
