@@ -94,3 +94,20 @@ def test_repair_pending_returns_zero_when_nothing_pending(tmp_path: Path) -> Non
     session = _new_session(tmp_path)
     session.append(Message(role="user", content="hi"))
     assert session.repair_pending() == 0
+
+
+def test_load_replays_compaction_checkpoint(tmp_path: Path) -> None:
+    session = _new_session(tmp_path)
+    for index in range(3):
+        session.append(Message(role="user", content=f"u{index}"))
+        session.append(Message(role="assistant", content=f"a{index}"))
+    turns_before = session.turn_count
+
+    summary = Message(role="user", content="earlier conversation checkpoint")
+    session.compact(2, summary)  # 用摘要替换 messages[1:2]
+
+    loaded = Session.load(session.path)
+    assert loaded.messages[1].content == "earlier conversation checkpoint"
+    assert loaded.message_positions[1] is None  # 摘要不占用 Turn/Step 位置
+    assert loaded.turn_count == turns_before  # 摘要不增加轮次
+    assert loaded.messages[-1].content == "a2"
