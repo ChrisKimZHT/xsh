@@ -96,3 +96,31 @@ def test_auto_compaction_triggers_when_over_threshold(tmp_path: Path) -> None:
     assert result.after_tokens < result.before_tokens
     assert "compacted-summary" in (session.messages[1].content or "")
 
+
+def test_compaction_returns_none_without_enough_history(tmp_path: Path) -> None:
+    session = Session.create(tmp_path / "s.jsonl", tmp_path, "system prompt")
+    session.append(Message(role="user", content="only one message"))
+    compactor = Compactor(_StubModel(), context_window=None, auto=False)
+    assert compactor.compact(session, tools=[], manual=True) is None
+
+
+def test_compaction_keeps_tool_calls_paired_in_long_turn(tmp_path: Path) -> None:
+    session = Session.create(tmp_path / "s.jsonl", tmp_path, "system prompt")
+    session.append(Message(role="user", content="run many tools " + "y" * 600))
+    for index in range(4):
+        call = ToolCall(id=f"c{index}", name="shell", arguments="{}")
+        session.append(Message(role="assistant", content="step " + "z" * 400, tool_calls=[call]))
+        session.append(Message(role="tool", tool_call_id=call.id, content="result " + "r" * 400))
+
+    compactor = Compactor(_StubModel(), context_window=None, auto=False)
+    result = compactor.compact(session, tools=[], manual=True)
+    assert result is not None
+    # 压缩后没有悬空工具调用，会话仍可加载。
+    assert not session.pending
+    reloaded = Session.load(session.path)
+    assert not reloaded.pending
+    assert all(
+        not (message.tool_calls and not any(m.tool_call_id in {c.id for c in message.tool_calls} for m in reloaded.messages))
+        for message in reloaded.messages
+    )
+
