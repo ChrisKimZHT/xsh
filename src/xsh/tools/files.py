@@ -9,6 +9,7 @@ from pathlib import Path
 from pydantic import Field
 
 from xsh.config import STATE_DIRECTORY
+from xsh.prompt import PromptSection
 from xsh.tools.base import Tool, ToolArgs, bounded
 
 _MAX_FILE_BYTES = 10 * 1024 * 1024
@@ -47,6 +48,13 @@ class GrepArgs(ToolArgs):
         min_length=1, description="Literal text to find; NOT a regular expression."
     )
     glob: str = Field(default="*", min_length=1)
+
+
+_FILE_GUIDANCE = (
+    'File paths are relative to the workspace unless absolute. File tools only operate inside that workspace, '
+    'and .xsh is reserved for harness session records. A file-tool access restriction is policy, not a command '
+    'bug; do not use shell commands to bypass it.'
+)
 
 
 class FileTools:
@@ -210,29 +218,49 @@ class FileTools:
                 "Read a UTF-8 file with line numbers. Use offset and limit to page.",
                 ReadArgs,
                 self.read,
+                prompt_sections=(PromptSection("files:policy", 200, _FILE_GUIDANCE),),
+                guidance=(
+                    'Use the read tool — not shell commands like cat — to inspect text files. Use offset and limit to continue '
+                    'reading large files. Line numbers in read output are display metadata, not part of the file.'
+                ),
             ),
             Tool(
                 "write",
                 "Create or fully replace a UTF-8 file. Read existing files first.",
                 WriteArgs,
                 self.write,
+                prompt_sections=(PromptSection("files:policy", 200, _FILE_GUIDANCE),),
+                guidance='Read an existing file before overwriting it with write (the file tools require it) and prefer edit for targeted changes.',
             ),
             Tool(
                 "edit",
                 "Replace literal text in a previously read file; unique match by default.",
                 EditArgs,
                 self.edit,
+                prompt_sections=(PromptSection("files:policy", 200, _FILE_GUIDANCE),),
+                guidance=(
+                    'Read a file before editing it (the file tools require it), unless you just created or edited it in this '
+                    'session. If a file changed since your last observation, read it again. Literal edits must match exactly, '
+                    'including whitespace and line endings; provide enough surrounding text to identify a unique occurrence.'
+                ),
             ),
             Tool(
                 "glob",
                 f"Find workspace file paths by glob. Returns at most {_RESULT_LIMIT} paths.",
                 GlobArgs,
                 self.glob,
+                prompt_sections=(PromptSection("files:policy", 200, _FILE_GUIDANCE),),
+                guidance='Use the glob tool — not shell find — to discover files by path pattern.',
             ),
             Tool(
                 "grep",
                 f"Search UTF-8 files for literal text. Returns at most {_RESULT_LIMIT} matching lines.",
                 GrepArgs,
                 self.grep,
+                prompt_sections=(PromptSection("files:policy", 200, _FILE_GUIDANCE),),
+                guidance=(
+                    'Use the grep tool — not shell grep or rg — to search file contents. Its pattern is literal text, not a '
+                    'regular expression. Use read on a matched file when you need surrounding context.'
+                ),
             ),
         ]

@@ -105,5 +105,13 @@ class ShellTools:
                 "No persistent shell or background jobs. This tool is not sandboxed.",
                 ShellArgs,
                 self.execute,
+                guidance=(
+                    "Your shell tool runs foreground commands with the workspace as its working directory. "
+                    "It is not sandboxed and has no persistent terminal or background job support. "
+                    "Use the shell dialect advertised in its tool description. Use it for tests and build commands.\n\n"
+                    "Check the [exit code: N] marker on every shell result; investigate failures and "
+                    "timeouts before moving on. After a timeout, inspect state before retrying commands "
+                    "with side effects."
+                ),
             ),
         ]

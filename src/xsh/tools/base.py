@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict
 
 from xsh.config import Settings
 from xsh.messages import Message, ToolCall
+from xsh.prompt import PromptSection
 
 _OUTPUT_LIMIT = 64_000
 
@@ -25,6 +26,8 @@ class Tool:
     parameters: type[ToolArgs]
     execute: Callable[[ToolArgs], str]
     output_limit: int = _OUTPUT_LIMIT
+    guidance: str = ""
+    prompt_sections: tuple[PromptSection, ...] = ()
 
     def schema(self) -> dict:
         return {
@@ -70,6 +73,15 @@ class ToolRegistry:
         if allow_shell:
             definitions.extend(ShellTools(workspace).definitions())
         return cls(definitions)
+
+    def prompt_sections(self) -> list[PromptSection]:
+        """Contribute guidance only for tools advertised by this registry."""
+        sections = []
+        for tool in self.tools.values():
+            sections.extend(tool.prompt_sections)
+            if tool.guidance:
+                sections.append(PromptSection(f"tool:{tool.name}", 300, tool.guidance))
+        return sections
 
     def schemas(self) -> list[dict]:
         """返回所有工具的 JSON Schema 列表"""

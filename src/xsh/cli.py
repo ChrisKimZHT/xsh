@@ -102,20 +102,19 @@ def main(argv: list[str] | None = None) -> int:
             if args.workspace and workspace != session.workspace:
                 raise ValueError("Resumed session belongs to a different workspace")
             workspace = session.workspace
-            # 模型在重启后可能已更换，重新渲染系统提示词
-            system_prompt = build_prompt(workspace, model=settings.model, allow_shell=args.allow_shell)
-            session.update_system_prompt(system_prompt)
         else:
             filename = datetime.now().strftime("%Y%m%d-%H%M%S-") + uuid4().hex[:8] + ".jsonl"
             default_path = workspace / _SESSION_DIRECTORY / filename
             path = args.session or default_path
-            system_prompt = build_prompt(workspace, model=settings.model, allow_shell=args.allow_shell)
-            session = Session.create(path, workspace, system_prompt)
+            session = Session.create(path, workspace, "")  # 此时系统提示词还没准备好，后续会更新
+
+        tools = ToolRegistry.default(workspace, settings, record=session.record, allow_shell=args.allow_shell)
+        system_prompt = build_prompt(workspace, model=settings.model, tools=tools)
+        # 系统提示词已准备好，更新 session 的系统提示词
+        session.update_system_prompt(system_prompt)
+
         terminal.session(session.path)
         terminal.system_prompt(session.messages[0].content or "")
-
-        # 准备工具列表
-        tools = ToolRegistry.default(workspace, settings, record=session.record, allow_shell=args.allow_shell)
 
         # 准备 OpenAI 客户端
         with OpenAI(
