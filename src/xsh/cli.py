@@ -1,6 +1,7 @@
 """cli.py - 主函数，准备会话、工具、模型，创建 Agent 并运行，维护 Turn 循环"""
 
 import argparse
+import shutil
 import signal
 import sys
 from datetime import datetime
@@ -37,6 +38,17 @@ def _handle_sigterm(signum: int, frame: object) -> None:
     raise KeyboardInterrupt
 
 
+def fork_session(source: Path, directory: Path) -> Path:
+    """把已有会话复制为新文件，返回新路径（原会话保持不变）。"""
+    source = Path(source).resolve()
+    if not source.is_file():
+        raise ValueError(f"Session not found: {source}")
+    directory.mkdir(parents=True, exist_ok=True)
+    target = directory / (datetime.now().strftime("%Y%m%d-%H%M%S-") + uuid4().hex[:8] + ".jsonl")
+    shutil.copyfile(source, target)
+    return target
+
+
 def list_sessions(directory: Path) -> list[tuple[float, int, str]]:
     """列出会话目录中的 JSONL 文件，按修改时间倒序返回 (mtime_ns, size, name)。"""
     if not directory.is_dir():
@@ -57,6 +69,7 @@ def parser() -> argparse.ArgumentParser:
     sessions = result.add_mutually_exclusive_group()
     sessions.add_argument("--session", type=Path, help="Create a new JSONL file at this path")
     sessions.add_argument("--resume", type=Path, nargs="?", const=True, help="Resume a JSONL session; omit the path for the most recently modified default session")
+    sessions.add_argument("--fork", type=Path, help="Copy an existing session to a new file and open the copy (branch without touching the original)")
     result.add_argument("--allow-shell", action="store_true", help="Enable unsandboxed shell execution")
     result.add_argument("--verbose", action="store_true", help="Show the system prompt, reasoning, and tool results on stdout")
     result.add_argument("--non-stop-mode", action="store_true", help="Continuously improve one task and automatically start another Turn until interrupted")
@@ -142,7 +155,13 @@ def main(argv: list[str] | None = None) -> int:
         # 阶段 2：准备会话（恢复/创建）
         # ===========================
         terminal.context_window = settings.context_window
-        if args.resume is not None:
+        if args.fork is not None:
+            # 从已有会话分叉：复制为新文件后按恢复处理，原会话不受影响。
+            forked = fork_session(args.fork, workspace / _SESSION_DIRECTORY)
+            session = Session.load(forked)
+            workspace = session.workspace
+            terminal.report("recovery", f"Forked {args.fork} -> {forked.name}")
+        elif args.resume is not None:
             resume_path = args.resume
             if resume_path is True:  # 如果没有提供路径，则 resume 最近的会话
                 session_directory = workspace / _SESSION_DIRECTORY

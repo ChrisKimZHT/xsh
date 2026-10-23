@@ -4,7 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from xsh.cli import _handle_sigterm, list_sessions, main, parser
+from xsh.cli import _handle_sigterm, fork_session, list_sessions, main, parser
+from xsh.messages import Message
+from xsh.session import Session
 
 
 def test_sigterm_handler_raises_keyboard_interrupt() -> None:
@@ -36,3 +38,22 @@ def test_list_sessions_flag_prints_and_exits(tmp_path: Path, capsys: pytest.Capt
     assert main(["--list-sessions", "--workspace", str(tmp_path)]) == 0
     out = capsys.readouterr().out
     assert "session-1.jsonl" in out
+
+
+def test_fork_session_copies_and_isolates(tmp_path: Path) -> None:
+    directory = tmp_path / "sessions"
+    source = Session.create(directory / "orig.jsonl", tmp_path, "system prompt")
+    source.append(Message(role="user", content="hi"))
+
+    forked = fork_session(source.path, directory)
+    assert forked != source.path and forked.is_file()
+    loaded = Session.load(forked)
+    assert loaded.turn_count == 1
+
+    loaded.append(Message(role="assistant", content="only in fork"))
+    assert Session.load(source.path).turn_count == 1  # 原会话未受影响
+
+
+def test_fork_session_missing_raises(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="Session not found"):
+        fork_session(tmp_path / "nope.jsonl", tmp_path / "sessions")
