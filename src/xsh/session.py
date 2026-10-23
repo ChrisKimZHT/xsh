@@ -16,38 +16,36 @@ def _read_events(path: Path) -> list[dict[str, Any]]:
     JSONL 记录写成 "行 + \\n"，且 JSON 内部换行会被转义，因此每条完整记录占用一行。
     若进程在写入最后一条记录时被中断，末尾会留下半行 JSON。这里会丢弃并**物理截断**
     该残片，避免它在下次追加后不再是末行、导致会话无法恢复。中间位置的损坏仍会报错。
+    采用逐行流式读取，避免把整份（可能很大）会话文件一次性读入内存。
     """
-    data = path.read_bytes()
-    if not data:
-        return []
-
-    chunks = data.split(b"\n")
-    trailing = b""
-    if chunks[-1] == b"":
-        chunks.pop()  # 文件以换行结尾，split 产生的空片段
-    else:
-        trailing = chunks.pop()  # 末尾没有换行符，可能是不完整记录
-
     events: list[dict[str, Any]] = []
-    for line in chunks:
-        if not line.strip():
-            continue
-        try:
-            events.append(json.loads(line))
-        except ValueError:
-            raise ValueError("Corrupt session event in a complete line") from None
+    truncate_at: int | None = None
+    with path.open("rb") as handle:
+        while True:
+            start = handle.tell()
+            line = handle.readline()
+            if not line:  # 文件结束
+                break
+            if not line.endswith(b"\n"):
+                # 末尾没有换行符：可能是被中断的半行，也可能是缺少换行的完整记录。
+                if line.strip():
+                    try:
+                        events.append(json.loads(line))
+                    except ValueError:
+                        truncate_at = start
+                    else:
+                        with path.open("ab") as append_handle:
+                            append_handle.write(b"\n")
+                break
+            if line.strip():
+                try:
+                    events.append(json.loads(line))
+                except ValueError:
+                    raise ValueError("Corrupt session event in a complete line") from None
 
-    if trailing and trailing.strip():
-        try:
-            events.append(json.loads(trailing))
-        except ValueError:
-            # 不完整残片：从文件中截断它。
-            with path.open("r+b") as handle:
-                handle.truncate(len(data) - len(trailing))
-        else:
-            # 恰好缺少结尾换行符的完整记录：补回换行符。
-            with path.open("ab") as handle:
-                handle.write(b"\n")
+    if truncate_at is not None:
+        with path.open("r+b") as handle:
+            handle.truncate(truncate_at)
     return events
 
 
