@@ -111,3 +111,13 @@ def test_load_replays_compaction_checkpoint(tmp_path: Path) -> None:
     assert loaded.message_positions[1] is None  # 摘要不占用 Turn/Step 位置
     assert loaded.turn_count == turns_before  # 摘要不增加轮次
     assert loaded.messages[-1].content == "a2"
+
+
+def test_load_without_repair_leaves_pending(tmp_path: Path) -> None:
+    session = _new_session(tmp_path)
+    session.append(Message(role="user", content="go"))
+    session.append(Message(role="assistant", tool_calls=[ToolCall(id="c9", name="shell", arguments="{}")]))
+
+    loaded = Session.load(session.path, repair=False)
+    assert loaded.recovered_tool_calls == 0
+    assert loaded.pending  # 未修复时仍处于挂起状态

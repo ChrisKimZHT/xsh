@@ -78,8 +78,8 @@ class Session:
         return session
 
     @classmethod
-    def load(cls, path: Path) -> "Session":
-        """恢复会话，并为中断的工具调用补齐错误结果"""
+    def load(cls, path: Path, *, repair: bool = True) -> "Session":
+        """恢复会话；repair=True 时为中断的工具调用补齐错误结果。"""
         # 读取会话 JSONL 文件。进程可能在校验最后一行写入时被中断，因此允许
         # 丢弃末尾一条不完整记录；中间位置的损坏仍然视为错误。
         path = path.resolve()
@@ -119,7 +119,8 @@ class Session:
             raise ValueError("Missing system prompt")
 
         # 中断前可能已产生副作用，恢复时不自动重跑工具。
-        session.recovered_tool_calls = session.repair_pending()
+        if repair:
+            session.recovered_tool_calls = session.repair_pending()
         return session
 
     def update_system_prompt(self, content: str) -> None:
