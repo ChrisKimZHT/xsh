@@ -40,6 +40,25 @@ def _handle_sigterm(signum: int, frame: object) -> None:
     raise KeyboardInterrupt
 
 
+def _settings_from_args(args: argparse.Namespace) -> Settings:
+    """从命令行参数与环境变量构造 Settings（命令行优先）。"""
+    return Settings.from_env(
+        base_url=args.base_url,
+        model=args.model,
+        api_key=args.api_key,
+        max_steps=args.max_steps,
+        max_turns=args.max_turns,
+        max_tokens=args.max_tokens,
+        context_window=args.context_window,
+        auto_compact=args.auto_compact,
+        compact_threshold=args.compact_threshold,
+        compact_retain_ratio=args.compact_retain_ratio,
+        compact_max_tokens=args.compact_max_tokens,
+        request_timeout=args.request_timeout,
+        max_retries=args.max_retries,
+    )
+
+
 def fork_session(source: Path, directory: Path) -> Path:
     """把已有会话复制为新文件，返回新路径（原会话保持不变）。"""
     source = Path(source).resolve()
@@ -78,6 +97,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--ready-file", type=Path, help="Write a startup readiness record (boot id, PID, session) for external supervisors")
     result.add_argument("--version", action="version", version=f"%(prog)s {version('xsh-agent')}")
     result.add_argument("--list-sessions", action="store_true", help="List saved sessions for the workspace and exit")
+    result.add_argument("--dump-prompt", action="store_true", help="Print the assembled system prompt and exit")
 
     # 覆盖 .env 配置的命令行参数
     result.add_argument("--base-url", help="OpenAI-compatible API base URL")
@@ -126,6 +146,18 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {when}  {size:>10}  {name}")
         return 0
 
+    # 打印系统提示词同样不需要终端；便于脚本化检查提示词组装结果。
+    if args.dump_prompt:
+        try:
+            workspace = (args.workspace or Path.cwd()).resolve(strict=True)
+            settings = _settings_from_args(args)
+            tools = ToolRegistry.default(workspace, settings, allow_shell=args.allow_shell)
+            print(build_prompt(workspace, model=settings.model, tools=tools, non_stop_mode=args.non_stop_mode))
+            return 0
+        except (ValidationError, OSError, ValueError) as error:
+            print(f"xsh: {error}", file=sys.stderr)
+            return 2
+
     # 仅支持终端输出；重定向或管道无法渲染动态界面，直接报错退出。
     try:
         terminal = Terminal(verbose=args.verbose)
@@ -139,21 +171,7 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("Workspace must be a directory")
 
         # 覆盖 .env 配置的命令行参数
-        settings = Settings.from_env(
-            base_url=args.base_url,
-            model=args.model,
-            api_key=args.api_key,
-            max_steps=args.max_steps,
-            max_turns=args.max_turns,
-            max_tokens=args.max_tokens,
-            context_window=args.context_window,
-            auto_compact=args.auto_compact,
-            compact_threshold=args.compact_threshold,
-            compact_retain_ratio=args.compact_retain_ratio,
-            compact_max_tokens=args.compact_max_tokens,
-            request_timeout=args.request_timeout,
-            max_retries=args.max_retries,
-        )
+        settings = _settings_from_args(args)
 
         # ===========================
         # 阶段 2：准备会话（恢复/创建）

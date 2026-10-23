@@ -57,3 +57,11 @@ def test_fork_session_copies_and_isolates(tmp_path: Path) -> None:
 def test_fork_session_missing_raises(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="Session not found"):
         fork_session(tmp_path / "nope.jsonl", tmp_path / "sessions")
+
+
+def test_dump_prompt_prints_system_prompt(tmp_path: Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("XSH_BASE_URL", "https://example/v1")
+    monkeypatch.setenv("XSH_MODEL", "m")
+    monkeypatch.setenv("XSH_API_KEY", "k")
+    assert main(["--dump-prompt", "--workspace", str(tmp_path)]) == 0
+    assert "You are an AI agent powered by xsh." in capsys.readouterr().out
