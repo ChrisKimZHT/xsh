@@ -36,6 +36,19 @@ def _handle_sigterm(signum: int, frame: object) -> None:
     raise KeyboardInterrupt
 
 
+def list_sessions(directory: Path) -> list[tuple[float, int, str]]:
+    """列出会话目录中的 JSONL 文件，按修改时间倒序返回 (mtime_ns, size, name)。"""
+    if not directory.is_dir():
+        return []
+    entries: list[tuple[float, int, str]] = []
+    for path in directory.glob("*.jsonl"):
+        if path.is_file():
+            stat = path.stat()
+            entries.append((stat.st_mtime_ns, stat.st_size, path.name))
+    entries.sort(reverse=True)
+    return entries
+
+
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(prog="xsh", description="xsh - a deliberately small, single-agent harness")
     result.add_argument("prompt", nargs="?", help="Run one task; omit for interactive mode")
@@ -48,6 +61,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--non-stop-mode", action="store_true", help="Continuously improve one task and automatically start another Turn until interrupted")
     result.add_argument("--ready-file", type=Path, help="Write a startup readiness record (boot id, PID, session) for external supervisors")
     result.add_argument("--version", action="version", version=f"%(prog)s {version('xsh-agent')}")
+    result.add_argument("--list-sessions", action="store_true", help="List saved sessions for the workspace and exit")
 
     # 覆盖 .env 配置的命令行参数
     result.add_argument("--base-url", help="OpenAI-compatible API base URL")
@@ -77,6 +91,23 @@ def main(argv: list[str] | None = None) -> int:
         signal.signal(signal.SIGTERM, _handle_sigterm)
     except (ValueError, OSError):
         pass
+
+    # 列出会话不需要终端或模型；在创建 Terminal 之前处理，便于脚本化调用。
+    if args.list_sessions:
+        try:
+            workspace = (args.workspace or Path.cwd()).resolve(strict=True)
+        except OSError as error:
+            print(f"xsh: {error}", file=sys.stderr)
+            return 2
+        entries = list_sessions(workspace / _SESSION_DIRECTORY)
+        if not entries:
+            print(f"No sessions found in {workspace / _SESSION_DIRECTORY}")
+            return 0
+        print(f"Sessions in {workspace / _SESSION_DIRECTORY} (newest first):")
+        for mtime_ns, size, name in entries:
+            when = datetime.fromtimestamp(mtime_ns / 1e9).strftime("%Y-%m-%d %H:%M:%S")
+            print(f"  {when}  {size:>10}  {name}")
+        return 0
 
     # 仅支持终端输出；重定向或管道无法渲染动态界面，直接报错退出。
     try:
