@@ -19,7 +19,7 @@ from xsh.session import Session
 from xsh.terminal import Terminal
 from xsh.tools.base import ToolRegistry
 from xsh.tools.files import FileTools
-from xsh.tools.shell import shell_tool
+from xsh.tools.shell import ShellTools
 from xsh.tools.web import WebTools
 
 _SESSION_DIRECTORY = Path(STATE_DIRECTORY) / "sessions"
@@ -121,7 +121,7 @@ def main(argv: list[str] | None = None) -> int:
         definitions = FileTools(workspace).definitions()
         definitions.extend(WebTools(settings, record=session.record).definitions())
         if args.allow_shell:
-            definitions.append(shell_tool(workspace))
+            definitions.extend(ShellTools(workspace).definitions())
 
         # 准备 OpenAI 客户端
         with OpenAI(

@@ -40,36 +40,39 @@ def _stop(process: subprocess.Popen) -> None:
     process.wait()
 
 
-def shell_tool(workspace: Path) -> Tool:
-    windows = os.name == "nt"
-    executable = (
-        (shutil.which("pwsh") or shutil.which("powershell")) if windows else shutil.which("bash")
-    )
-    if executable is None:
-        raise ValueError("PowerShell (Windows) or bash (Unix) is required for --allow-shell")
-    dialect = "PowerShell" if windows else "bash"
+class ShellTools:
+    def __init__(self, workspace: Path):
+        self.workspace = workspace
+        self.windows = os.name == "nt"
+        self.executable = (
+            (shutil.which("pwsh") or shutil.which("powershell"))
+            if self.windows else shutil.which("bash")
+        )
+        if self.executable is None:
+            raise ValueError("PowerShell (Windows) or bash (Unix) is required for --allow-shell")
+        self.dialect = "PowerShell" if self.windows else "bash"
 
-    def execute(args: ShellArgs) -> str:
+    def execute(self, args: ShellArgs) -> str:
         command = args.command
-        if windows:
+        if self.windows:
             command = (
                 "$ErrorActionPreference = 'Stop'; "
                 "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new(); "
                 "$OutputEncoding = [Console]::OutputEncoding; " + command
             )
-            argv = [executable, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command]
+            argv = [self.executable, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command]
         else:
-            argv = [executable, "-c", command]
+            argv = [self.executable, "-c", command]
         options = (
             {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW}
-            if windows
+            if self.windows
             else {"start_new_session": True}
         )
         # File-backed output avoids unbounded Python memory for noisy commands.
         with tempfile.TemporaryFile() as output:
             process = subprocess.Popen(
                 argv,
-                cwd=workspace,
+                cwd=self.workspace,
                 stdin=subprocess.DEVNULL,
                 stdout=output,
                 stderr=subprocess.STDOUT,
@@ -94,10 +97,13 @@ def shell_tool(workspace: Path) -> Tool:
             status += " [timed out; inspect state before retrying commands with side effects]"
         return status + "\n" + bounded(text)
 
-    return Tool(
-        "shell",
-        f"Run a foreground {dialect} command in the workspace with a timeout. "
-        "No persistent shell or background jobs. This tool is not sandboxed.",
-        ShellArgs,
-        execute,
-    )
+    def definitions(self) -> list[Tool]:
+        return [
+            Tool(
+                "shell",
+                f"Run a foreground {self.dialect} command in the workspace with a timeout. "
+                "No persistent shell or background jobs. This tool is not sandboxed.",
+                ShellArgs,
+                self.execute,
+            ),
+        ]
