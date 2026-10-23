@@ -136,11 +136,17 @@ class Agent:
                 # 阶段 1：压缩上下文，准备请求
                 # ==========================
                 # 每 Step 之前都尝试压缩，未达到压缩条件，压缩器会自动跳过
+                schemas = self.tools.schemas()
                 if self.compactor:
-                    self.compactor.compact(self.session, self.tools.schemas())
+                    self.compactor.compact(self.session, schemas)
                 # 准备模型请求参数，取出会话消息和工具列表
-                request = self.model.build_request(self.session.messages, self.tools.schemas())
-                self.session.record("request", {"step": step, "body": request})
+                request = self.model.build_request(self.session.messages, schemas)
+                # 只记录请求摘要，不落盘完整请求体：请求体与已记录的消息重复，
+                # 逐步落盘会造成会话文件 O(n^2) 膨胀，拖慢恢复。
+                self.session.record(
+                    "request",
+                    {"step": step, "messages": len(self.session.messages), "tools": len(schemas)},
+                )
                 self.report("step", f"Turn {turn}, Step {step}")
 
                 # ===============

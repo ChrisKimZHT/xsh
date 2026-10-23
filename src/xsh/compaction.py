@@ -144,7 +144,7 @@ class Compactor:
 
         # 开始压缩请求
         self.report("compaction", "Compacting context…")
-        session.record("compaction_start", {"manual": manual, "end": end, "request": summary_request})
+        session.record("compaction_start", {"manual": manual, "end": end, "messages": len(summary_messages)})
         try:
             # 请求模型
             response = self.model.complete(summary_request)
