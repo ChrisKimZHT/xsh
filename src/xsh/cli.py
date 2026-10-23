@@ -306,6 +306,12 @@ def main(argv: list[str] | None = None) -> int:
                     case "/usage" | "/u":
                         terminal.usage(session)
                         return 0
+                    case "/help" | "/?":
+                        terminal.intro()
+                        return 0
+                    case "/sessions":
+                        terminal.sessions(list_sessions(workspace / _SESSION_DIRECTORY))
+                        return 0
                     case _ if prompt.strip().startswith("/find"):
                         needle = prompt.strip()[len("/find"):].strip()
                         if not needle:

@@ -1,5 +1,6 @@
 """terminal.py - 负责终端的输入和输出"""
 
+from datetime import datetime
 from importlib.metadata import version
 from time import perf_counter
 
@@ -29,6 +30,8 @@ _INTRO = """\
 - `/find <text>` — Search the conversation for text
 - `/todos` — Show the persisted task list
 - `/usage` — Show cumulative token usage
+- `/sessions` — List saved sessions in this workspace
+- `/help` — Show this help
 - `/compact` — Summarize older context and retain recent messages
 - `/quit` — Quit xsh
 """
@@ -344,4 +347,14 @@ class Terminal:
         text.append(f"\nOutput: {totals['completion_tokens']:,} tokens", style="dim")
         text.append(f"\nTotal: {totals['total_tokens']:,} tokens", style="dim")
         self.console.print(Panel(text, title="Session usage", title_align="left", border_style="cyan", expand=False))
+
+    def sessions(self, entries: list[tuple[float, int, str]]) -> None:
+        """打印工作区内的会话列表 (mtime_ns, size, name)。"""
+        if not entries:
+            self.console.print(Text("No saved sessions.", style="dim"))
+            return
+        self.console.print(Text("Saved sessions (newest first):", style="cyan"))
+        for mtime_ns, size, name in entries:
+            when = datetime.fromtimestamp(mtime_ns / 1e9).strftime("%Y-%m-%d %H:%M:%S")
+            self.console.print(Text(f"  {when}  {size:>10}  {name}", style="dim"))
 

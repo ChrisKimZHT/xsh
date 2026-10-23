@@ -84,3 +84,11 @@ def test_usage_renders_totals(terminal: tuple[Terminal, io.StringIO], tmp_path: 
     term.usage(session)
     assert "Session usage" in buffer.getvalue()
     assert "10" in buffer.getvalue()
+
+
+def test_sessions_renders_entries(terminal: tuple[Terminal, io.StringIO]) -> None:
+    term, buffer = terminal
+    term.sessions([])
+    assert "No saved sessions" in buffer.getvalue()
+    term.sessions([(1_700_000_000_000_000_000, 123, "a.jsonl")])
+    assert "a.jsonl" in buffer.getvalue()
