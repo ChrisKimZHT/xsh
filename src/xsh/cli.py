@@ -400,7 +400,7 @@ def main(argv: list[str] | None = None) -> int:
                         ))
                         sub_agent = Agent(model=model, session=sub_session, tools=sub_tools, max_steps=settings.max_steps, report=lambda kind, text: None)
                         result = sub_agent.run(subtask)
-                        return f"Subagent: {result.status} ({result.steps} step(s))\n{result.text or result.error or '(no output)'}"
+                        return f"Subagent: {result.status} ({result.steps} step(s)) [session {sub_session.path.name}]\n{result.text or result.error or '(no output)'}"
                     except Exception as error:  # noqa: BLE001 —— 单个子任务失败不应影响其它子任务
                         return f"Subagent error: {type(error).__name__}: {error}"
 
