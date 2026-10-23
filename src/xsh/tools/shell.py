@@ -42,8 +42,9 @@ def _stop(process: subprocess.Popen) -> None:
 
 
 class ShellTools:
-    def __init__(self, workspace: Path):
+    def __init__(self, workspace: Path, permissions: object | None = None):
         self.workspace = workspace
+        self.permissions = permissions
         self.windows = os.name == "nt"
         self.executable = (
             (shutil.which("pwsh") or shutil.which("powershell"))
@@ -54,6 +55,8 @@ class ShellTools:
         self.dialect = "PowerShell" if self.windows else "bash"
 
     def execute(self, args: ShellArgs) -> str:
+        if self.permissions is not None:
+            self.permissions.require_command(args.command)
         cwd = self.workspace
         if args.cwd:
             candidate = (self.workspace / args.cwd).resolve()

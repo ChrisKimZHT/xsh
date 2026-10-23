@@ -73,10 +73,11 @@ _FILE_GUIDANCE = (
 
 
 class FileTools:
-    def __init__(self, workspace: Path):
+    def __init__(self, workspace: Path, permissions: object | None = None):
         self.workspace = workspace.resolve(strict=True)
         if not self.workspace.is_dir():
             raise ValueError("Workspace must be a directory")
+        self.permissions = permissions
         self.observed: dict[Path, str] = {}
 
     def resolve(self, name: str) -> Path:
@@ -127,6 +128,8 @@ class FileTools:
         return data.decode("utf-8")
 
     def _save(self, path: Path, text: str) -> None:
+        if self.permissions is not None:
+            self.permissions.require_path(path)
         data = text.encode("utf-8")
         if len(data) > _MAX_FILE_BYTES:
             raise ValueError(f"Output exceeds {_MAX_FILE_BYTES} bytes")

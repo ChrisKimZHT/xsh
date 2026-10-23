@@ -24,6 +24,7 @@ xsh 是一个模仿 [dsh](https://github.com/deepseek-ai/deepseek-harness) 的�
 - 事件钩子：`.xsh/hooks.json` 声明 pre/post tool-use 钩子（需启用 shell；pre 非零退出可拦截调用）
 - 子代理委派：`task` 工具把自包含子任务交给独立上下文的子代理执行并返回报告；可并发多个、或 `background=true` 后台执行后用 `task_status` 轮询
 - MCP 客户端：`.xsh/mcp.json` 声明外部 MCP 服务器，其工具以 `mcp__<server>__<tool>` 接入
+- 权限策略：`.xsh/permissions.json` 的 `deny_paths`/`deny_commands` 可拒绝对匹配路径的写入与匹配命令
 - 检索增强：`grep` 支持可选正则、忽略大小写与上下文行（默认仍为字面匹配）
 - 批量编辑：`multiedit` 对同一文件按序应用多处编辑，全部匹配时一次性原子写入
 - 会话导出：`/export [文件]` 把对话写成 Markdown 转录（限制在工作区内）
@@ -130,6 +131,7 @@ xsh "1 + 1 = ?"  # 单轮任务模式
 | `.xsh/skills/*.md`    | 技能包（`skill` 工具按需加载）                    |
 | `.xsh/hooks.json`     | pre/post tool-use 钩子（需启用 shell）           |
 | `.xsh/mcp.json`       | 外部 MCP stdio 服务器定义                        |
+| `.xsh/permissions.json` | 可选权限策略（`deny_paths` / `deny_commands`）   |
 | `.supervisor/`        | 重启监督脚本、日志与状态（`PROGRESS.md` 等）      |
 
 ### 环境变量（均可选）

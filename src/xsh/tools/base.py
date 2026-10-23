@@ -83,6 +83,7 @@ class ToolRegistry:
         current_todos: Callable[[], list[dict]] | None = None,
         memory_store: object | None = None,
         skills_library: object | None = None,
+        permissions: object | None = None,
     ) -> "ToolRegistry":
         """准备默认工具列表"""
         from xsh.tools.files import FileTools
@@ -92,7 +93,7 @@ class ToolRegistry:
         from xsh.tools.todo import TodoTools
         from xsh.tools.web import WebTools
 
-        definitions = FileTools(workspace).definitions()
+        definitions = FileTools(workspace, permissions=permissions).definitions()
         definitions.extend(WebTools(settings, record=record).definitions())
         definitions.extend(TodoTools(record=record, report=report, current=current_todos).definitions())
         if memory_store is not None:
@@ -100,7 +101,7 @@ class ToolRegistry:
         if skills_library is not None:
             definitions.extend(SkillTools(skills_library).definitions())
         if allow_shell:
-            definitions.extend(ShellTools(workspace).definitions())
+            definitions.extend(ShellTools(workspace, permissions=permissions).definitions())
         return cls(definitions)
 
     def prompt_sections(self) -> list[PromptSection]:
