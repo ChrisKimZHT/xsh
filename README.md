@@ -140,6 +140,7 @@ xsh "1 + 1 = ?"  # 单轮任务模式
 | 变量                     | 说明                                             |
 | ------------------------ | ------------------------------------------------ |
 | `XSH_BASE_URL` / `XSH_MODEL` / `XSH_API_KEY` | 模型端点、模型名与密钥         |
+| `XSH_ALLOW_SHELL`        | 置 1/true 时无需 `--allow-shell` 即启用 shell（注意无沙箱） |
 | `XSH_MAX_STEPS`          | 单轮最大 Step 数                                 |
 | `XSH_MAX_TURNS`          | 非停机模式最多 Turn 数                           |
 | `XSH_MAX_RUN_TOKENS`     | 非停机运行 token 预算                            |

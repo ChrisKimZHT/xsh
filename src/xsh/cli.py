@@ -3,6 +3,7 @@
 import argparse
 import atexit
 import json
+import os
 import shutil
 import signal
 import sys
@@ -49,6 +50,13 @@ def _handle_sigterm(signum: int, frame: object) -> None:
     修复未完成的工具调用并记录 turn_end，而不是被直接终止。
     """
     raise KeyboardInterrupt
+
+
+def _allow_shell(args: argparse.Namespace) -> bool:
+    """--allow-shell 或环境变量 XSH_ALLOW_SHELL 任一为真即启用 shell。"""
+    if args.allow_shell:
+        return True
+    return os.environ.get("XSH_ALLOW_SHELL", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _settings_from_args(args: argparse.Namespace) -> Settings:
@@ -146,8 +154,9 @@ def run_print_mode(args: argparse.Namespace) -> int:
     memory_store = MemoryStore(workspace / STATE_DIRECTORY / "memory.md")
     skills_library = SkillLibrary(workspace / STATE_DIRECTORY / "skills")
 
+    allow_shell = _allow_shell(args)
     tools = ToolRegistry.default(
-        workspace, settings, record=session.record, allow_shell=args.allow_shell,
+        workspace, settings, record=session.record, allow_shell=allow_shell,
         current_todos=lambda: session.todos, memory_store=memory_store, skills_library=skills_library,
         permissions=Permissions.load(workspace / STATE_DIRECTORY / "permissions.json"),
     )
@@ -165,7 +174,7 @@ def run_print_mode(args: argparse.Namespace) -> int:
         max_retries=settings.max_retries,
     ) as client:
         model = OpenAIModel(client, settings.model, settings.max_tokens)
-        hooks = Hooks.load(workspace / STATE_DIRECTORY / "hooks.json", enabled=args.allow_shell)
+        hooks = Hooks.load(workspace / STATE_DIRECTORY / "hooks.json", enabled=allow_shell)
         compactor = Compactor(
             model, context_window=settings.context_window, auto=settings.auto_compact,
             threshold=settings.compact_threshold, retain_ratio=settings.compact_retain_ratio,
@@ -279,7 +288,7 @@ def main(argv: list[str] | None = None) -> int:
             memory_store = MemoryStore(workspace / STATE_DIRECTORY / "memory.md")
             skills_library = SkillLibrary(workspace / STATE_DIRECTORY / "skills")
             tools = ToolRegistry.default(
-                workspace, settings, allow_shell=args.allow_shell, memory_store=memory_store,
+                workspace, settings, allow_shell=_allow_shell(args), memory_store=memory_store,
                 skills_library=skills_library, permissions=Permissions.load(workspace / STATE_DIRECTORY / "permissions.json"),
             )
             # 与真实运行保持一致：补上 task/task_status（这里用占位回调，仅用于 schema/提示词）。
@@ -329,6 +338,7 @@ def main(argv: list[str] | None = None) -> int:
 
         # 覆盖 .env 配置的命令行参数
         settings = _settings_from_args(args)
+        allow_shell = _allow_shell(args)
 
         # ===========================
         # 阶段 2：准备会话（恢复/创建）
@@ -387,7 +397,7 @@ def main(argv: list[str] | None = None) -> int:
         skills_library = SkillLibrary(workspace / STATE_DIRECTORY / "skills")
         permissions = Permissions.load(workspace / STATE_DIRECTORY / "permissions.json")
         tools = ToolRegistry.default(
-            workspace, settings, record=session.record, report=terminal.report, allow_shell=args.allow_shell,
+            workspace, settings, record=session.record, report=terminal.report, allow_shell=allow_shell,
             current_todos=lambda: session.todos, memory_store=memory_store, skills_library=skills_library,
             permissions=permissions,
         )
@@ -419,7 +429,7 @@ def main(argv: list[str] | None = None) -> int:
                         directory = workspace / STATE_DIRECTORY / "subtasks"
                         sub_session = Session.create(directory / f"{uuid4().hex}.jsonl", workspace, "")
                         sub_tools = ToolRegistry.default(
-                            workspace, settings, record=sub_session.record, allow_shell=args.allow_shell,
+                            workspace, settings, record=sub_session.record, allow_shell=allow_shell,
                             current_todos=lambda: sub_session.todos, memory_store=memory_store, skills_library=skills_library,
                             permissions=permissions,
                         )
@@ -474,7 +484,7 @@ def main(argv: list[str] | None = None) -> int:
                 tools=tools,
                 max_steps=settings.max_steps,
                 report=terminal.report,
-                hooks=Hooks.load(workspace / STATE_DIRECTORY / "hooks.json", enabled=args.allow_shell),
+                hooks=Hooks.load(workspace / STATE_DIRECTORY / "hooks.json", enabled=allow_shell),
                 compactor=Compactor(
                     model, context_window=terminal.context_window, auto=settings.auto_compact,
                     threshold=settings.compact_threshold, retain_ratio=settings.compact_retain_ratio,

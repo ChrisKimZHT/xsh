@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from xsh.cli import _handle_sigterm, fork_session, list_sessions, main, maybe_compact_session, parser, resolve_session
+from xsh.cli import _allow_shell, _handle_sigterm, fork_session, list_sessions, main, maybe_compact_session, parser, resolve_session
 from xsh.messages import Message
 from xsh.session import Session
 
@@ -162,3 +162,11 @@ def test_compact_session_defaults_to_latest(tmp_path: Path, capsys: pytest.Captu
     _session_with_noise(tmp_path)
     assert main(["--compact-session", "--workspace", str(tmp_path)]) == 0
     assert "changed" in capsys.readouterr().out
+
+
+def test_allow_shell_flag_and_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("XSH_ALLOW_SHELL", raising=False)
+    assert _allow_shell(parser().parse_args([])) is False
+    assert _allow_shell(parser().parse_args(["--allow-shell"])) is True
+    monkeypatch.setenv("XSH_ALLOW_SHELL", "yes")
+    assert _allow_shell(parser().parse_args([])) is True
