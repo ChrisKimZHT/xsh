@@ -18,14 +18,14 @@ xsh 是一个刻意保持精简的单 Agent harness。以下为自迭代期间�
 ## CLI
 
 - `--workspace`、`--session`、`--resume [名字/前缀]`、`--fork`、`--list-sessions`。
-- `--dump-prompt`、`--list-tools`、`--list-skills`、`--compact-session [文件]`。
+- `--dump-prompt`、`--list-tools`、`--list-skills`、`--doctor`、`--compact-session [文件]`。
 - `--print`（无终端单轮/非停机执行，prompt 可来自参数或 stdin）。
 - `--non-stop-mode`、`--max-turns`、`--max-run-tokens`、`--ready-file`、`--version`。
 
 ## 交互命令
 
 `/list` `/find` `/todos` `/memory` `/reload` `/skills` `/tasks` `/usage` `/stats` `/config`
-`/sessions` `/export` `/compact` `/help` `/quit`。
+`/sessions` `/export` `/compact` `/doctor` `/help` `/quit`。
 
 ## 机制与配置
 
