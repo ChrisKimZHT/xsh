@@ -2,6 +2,7 @@
 
 import argparse
 import atexit
+import json
 import shutil
 import signal
 import sys
@@ -193,6 +194,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--list-sessions", action="store_true", help="List saved sessions for the workspace and exit")
     result.add_argument("--dump-prompt", action="store_true", help="Print the assembled system prompt and exit")
     result.add_argument("--list-tools", action="store_true", help="List the available tools and exit")
+    result.add_argument("--compact-session", nargs="?", const=True, type=Path, help="Offline-compact a session file (default: most recent) and exit")
     result.add_argument("--print", action="store_true", dest="print_mode", help="Run a prompt without the interactive UI and print the result")
 
     # 覆盖 .env 配置的命令行参数
@@ -242,6 +244,23 @@ def main(argv: list[str] | None = None) -> int:
             when = datetime.fromtimestamp(mtime_ns / 1e9).strftime("%Y-%m-%d %H:%M:%S")
             print(f"  {when}  {size:>10}  {name}")
         return 0
+
+    # 离线压缩会话（不需要终端/模型）：默认压缩最近会话。
+    if args.compact_session is not None:
+        try:
+            workspace = (args.workspace or Path.cwd()).resolve(strict=True)
+            if args.compact_session is True:
+                entries = list_sessions(workspace / _SESSION_DIRECTORY)
+                if not entries:
+                    raise ValueError(f"No sessions found in {workspace / _SESSION_DIRECTORY}")
+                target = workspace / _SESSION_DIRECTORY / entries[0][2]
+            else:
+                target = Path(args.compact_session)
+            print(json.dumps(compact_session_file(target, backup=True), ensure_ascii=False, indent=2))
+            return 0
+        except (OSError, ValueError) as error:
+            print(f"xsh: {error}", file=sys.stderr)
+            return 2
 
     # 打印系统提示词 / 工具清单同样不需要终端；便于脚本化检查。
     if args.dump_prompt or args.list_tools:

@@ -114,3 +114,26 @@ def test_resolve_session_by_name_prefix(tmp_path: Path) -> None:
 def test_print_mode_requires_a_prompt(capsys: pytest.CaptureFixture) -> None:
     assert main(["--print"]) == 2
     assert "requires a prompt" in capsys.readouterr().err
+
+
+def _session_with_noise(tmp_path: Path) -> Path:
+    directory = tmp_path / ".xsh" / "sessions"
+    path = directory / "s.jsonl"
+    session = Session.create(path, tmp_path, "system prompt")
+    session.append(Message(role="user", content="hi"))
+    session.record("request", {"body": "x" * 500})
+    return path
+
+
+def test_compact_session_flag(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    path = _session_with_noise(tmp_path)
+    before = path.stat().st_size
+    assert main(["--compact-session", str(path), "--workspace", str(tmp_path)]) == 0
+    assert '"changed": true' in capsys.readouterr().out
+    assert path.stat().st_size < before
+
+
+def test_compact_session_defaults_to_latest(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    _session_with_noise(tmp_path)
+    assert main(["--compact-session", "--workspace", str(tmp_path)]) == 0
+    assert "changed" in capsys.readouterr().out
