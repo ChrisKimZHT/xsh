@@ -1,5 +1,7 @@
 .ruff_cache
 .xsh
+.supervisor
+RESTART_FAILED.json
 
 ### Python template
 # Byte-compiled / optimized / DLL files

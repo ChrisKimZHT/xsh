@@ -132,6 +132,9 @@ class Terminal:
             self._stop_tool()
             self.console.print(Text(text, style="dim cyan"))
 
+        elif kind == "readiness":  # 启动就绪信号，供用户与日志确认本次启动成功
+            self.console.print(Text(text, style="dim green"))
+
         elif kind == "assistant_start":  # 模型开始输出
             self._text = ""
             self._reasoning = False

@@ -16,6 +16,7 @@ from xsh.config import STATE_DIRECTORY, Settings
 from xsh.model import OpenAIModel, discover_context_window
 from xsh.non_stop import NonStopTask, run_non_stop
 from xsh.prompt import build_prompt
+from xsh.readiness import build_record, new_boot_id, write_ready_file
 from xsh.session import Session
 from xsh.terminal import Terminal
 from xsh.tools.base import ToolRegistry
@@ -33,6 +34,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--allow-shell", action="store_true", help="Enable unsandboxed shell execution")
     result.add_argument("--verbose", action="store_true", help="Show the system prompt, reasoning, and tool results on stdout")
     result.add_argument("--non-stop-mode", action="store_true", help="Continuously improve one task and automatically start another Turn until interrupted")
+    result.add_argument("--ready-file", type=Path, help="Write a startup readiness record (boot id, PID, session) for external supervisors")
 
     # 覆盖 .env 配置的命令行参数
     result.add_argument("--base-url", help="OpenAI-compatible API base URL")
@@ -157,6 +159,28 @@ def main(argv: list[str] | None = None) -> int:
                 ),
             )
 
+            # ==============================
+            # 阶段 5：写入启动就绪信号
+            # ==============================
+            # 到这里配置、会话、工具和模型客户端都已就绪，可以开始执行 Turn。
+            # 监督脚本据此判断本次启动成功，因此写入失败需要报告但不能中断主流程。
+            boot_id = new_boot_id()
+            if args.ready_file is not None:
+                try:
+                    record = build_record(
+                        boot_id=boot_id,
+                        resumed=args.resume is not None,
+                        workspace=workspace,
+                        session=session.path,
+                        model=settings.model,
+                        non_stop=non_stop_mode,
+                    )
+                    write_ready_file(Path(args.ready_file).resolve(), record)
+                except OSError as error:
+                    terminal.error(f"xsh: could not write readiness file: {error}")
+                else:
+                    terminal.report("readiness", f"[xsh] ready pid={record['pid']} boot={boot_id} session={session.path}")
+
             # ========================
             # 阶段 6：命令解析和正式运行
             # ========================
@@ -198,7 +222,7 @@ def main(argv: list[str] | None = None) -> int:
                 if args.prompt is not None:
                     task = NonStopTask.parse(args.prompt)
                 elif session.non_stop_task is not None:
-                    task = NonStopTask(session.non_stop_task["prompt"], session.non_stop_task["continuation"])
+                    task = NonStopTask.from_stored(session.non_stop_task["prompt"], session.non_stop_task["continuation"])
                     return run_non_stop(
                         agent, task, terminal.outcome,
                         resumed=session.turn_count > session.non_stop_task["initial_turn"],
