@@ -217,3 +217,18 @@ class Session:
             self.append(Message(role="tool", tool_call_id=call.id, content="Error: " + detail))
             repaired += 1
         return repaired
+
+
+def usage_totals(path: Path) -> dict[str, int]:
+    """汇总会话文件中各 Turn 的 token 用量（读取 turn_end 事件）。"""
+    totals = {"turns": 0, "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    for event in _read_events(Path(path)):
+        if event.get("type") != "turn_end":
+            continue
+        totals["turns"] += 1
+        usage = event.get("data", {}).get("usage") or {}
+        for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
+            value = usage.get(key)
+            if type(value) is int and value >= 0:
+                totals[key] += value
+    return totals

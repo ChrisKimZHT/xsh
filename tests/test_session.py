@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from xsh.messages import Message, ToolCall
-from xsh.session import Session
+from xsh.session import Session, usage_totals
 
 
 def _new_session(tmp_path: Path) -> Session:
@@ -121,3 +121,13 @@ def test_load_without_repair_leaves_pending(tmp_path: Path) -> None:
     loaded = Session.load(session.path, repair=False)
     assert loaded.recovered_tool_calls == 0
     assert loaded.pending  # 未修复时仍处于挂起状态
+
+
+def test_usage_totals_sums_turn_end_events(tmp_path: Path) -> None:
+    session = _new_session(tmp_path)
+    session.record("turn_end", {"usage": {"prompt_tokens": 10, "completion_tokens": 2, "total_tokens": 12}})
+    session.record("turn_end", {"usage": {"prompt_tokens": 5, "completion_tokens": 1, "total_tokens": 6}})
+    session.record("message", Message(role="user", content="x").model_dump())
+
+    totals = usage_totals(session.path)
+    assert totals == {"turns": 2, "prompt_tokens": 15, "completion_tokens": 3, "total_tokens": 18}

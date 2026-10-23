@@ -272,6 +272,9 @@ def main(argv: list[str] | None = None) -> int:
                     case "/todos" | "/todo":
                         terminal.report("todos", format_todos(session.todos) if session.todos else "No todos on record.")
                         return 0
+                    case "/usage" | "/u":
+                        terminal.usage(session)
+                        return 0
                     case _ if prompt.strip().startswith("/find"):
                         needle = prompt.strip()[len("/find"):].strip()
                         if not needle:

@@ -13,7 +13,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from xsh.agent import TurnResult
-from xsh.session import Session
+from xsh.session import Session, usage_totals
 
 _REFRESH_PER_SECOND = 10
 _INTRO = """\
@@ -28,6 +28,7 @@ _INTRO = """\
 - `/list` — Show conversation history
 - `/find <text>` — Search the conversation for text
 - `/todos` — Show the persisted task list
+- `/usage` — Show cumulative token usage
 - `/compact` — Summarize older context and retain recent messages
 - `/quit` — Quit xsh
 """
@@ -334,4 +335,13 @@ class Terminal:
             snippet = " ".join((message.content or "").split())[:120]
             where = f"Turn {position[0]}, step {position[1]}" if position else "system/summary"
             self.console.print(Text(f"  [{index}] {message.role} ({where}): {snippet}", style="dim"))
+
+    def usage(self, session: Session) -> None:
+        """打印整个会话累计的 token 用量。"""
+        totals = usage_totals(session.path)
+        text = Text(f"Turns: {totals['turns']}")
+        text.append(f"\nInput: {totals['prompt_tokens']:,} tokens", style="dim")
+        text.append(f"\nOutput: {totals['completion_tokens']:,} tokens", style="dim")
+        text.append(f"\nTotal: {totals['total_tokens']:,} tokens", style="dim")
+        self.console.print(Panel(text, title="Session usage", title_align="left", border_style="cyan", expand=False))
 

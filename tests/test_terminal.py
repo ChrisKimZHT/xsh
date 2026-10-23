@@ -75,3 +75,12 @@ def test_find_reports_matches(terminal: tuple[Terminal, io.StringIO], tmp_path: 
     assert "match" in buffer.getvalue()
     term.find(session, "absent-token")
     assert "No matches" in buffer.getvalue()
+
+
+def test_usage_renders_totals(terminal: tuple[Terminal, io.StringIO], tmp_path: Path) -> None:
+    term, buffer = terminal
+    session = Session.create(tmp_path / "u.jsonl", tmp_path, "system prompt")
+    session.record("turn_end", {"usage": {"prompt_tokens": 7, "completion_tokens": 3, "total_tokens": 10}})
+    term.usage(session)
+    assert "Session usage" in buffer.getvalue()
+    assert "10" in buffer.getvalue()
