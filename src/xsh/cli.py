@@ -236,7 +236,7 @@ def main(argv: list[str] | None = None) -> int:
         # ==============================
         # 阶段 3：注册基础工具
         # ==============================
-        tools = ToolRegistry.default(workspace, settings, record=session.record, report=terminal.report, allow_shell=args.allow_shell)
+        tools = ToolRegistry.default(workspace, settings, record=session.record, report=terminal.report, allow_shell=args.allow_shell, current_todos=lambda: session.todos)
         non_stop_mode = args.non_stop_mode or session.non_stop_task is not None
 
         # ==============================
@@ -263,7 +263,7 @@ def main(argv: list[str] | None = None) -> int:
                 def one(subtask: str) -> str:
                     directory = workspace / STATE_DIRECTORY / "subtasks"
                     sub_session = Session.create(directory / f"{uuid4().hex}.jsonl", workspace, "")
-                    sub_tools = ToolRegistry.default(workspace, settings, record=sub_session.record, allow_shell=args.allow_shell)
+                    sub_tools = ToolRegistry.default(workspace, settings, record=sub_session.record, allow_shell=args.allow_shell, current_todos=lambda: sub_session.todos)
                     sub_session.update_system_prompt(build_prompt(workspace, model=settings.model, tools=sub_tools, non_stop_mode=False))
                     sub_agent = Agent(model=model, session=sub_session, tools=sub_tools, max_steps=settings.max_steps, report=lambda kind, text: None)
                     result = sub_agent.run(subtask)

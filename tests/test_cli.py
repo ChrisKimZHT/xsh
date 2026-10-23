@@ -78,11 +78,16 @@ def test_list_tools_prints_names(tmp_path: Path, capsys: pytest.CaptureFixture, 
 
 
 def test_resolve_session_by_name_prefix(tmp_path: Path) -> None:
+    import os
+
     directory = tmp_path / "sessions"
     directory.mkdir()
-    (directory / "20260101-000000-aaaa.jsonl").write_text("x", encoding="utf-8")
+    older = directory / "20260101-000000-aaaa.jsonl"
+    older.write_text("x", encoding="utf-8")
     newer = directory / "20260102-000000-bbbb.jsonl"
     newer.write_text("y", encoding="utf-8")
+    os.utime(older, (1_700_000_000, 1_700_000_000))
+    os.utime(newer, (1_700_000_500, 1_700_000_500))
 
     assert resolve_session(Path("20260102"), directory) == newer.resolve()
     assert resolve_session(newer, directory) == newer.resolve()

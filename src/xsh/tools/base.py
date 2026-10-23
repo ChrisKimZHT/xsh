@@ -78,6 +78,7 @@ class ToolRegistry:
         record: Callable[[str, dict], None] | None = None,
         report: Callable[[str, str], None] | None = None,
         allow_shell: bool = False,
+        current_todos: Callable[[], list[dict]] | None = None,
     ) -> "ToolRegistry":
         """准备默认工具列表"""
         from xsh.tools.files import FileTools
@@ -87,7 +88,7 @@ class ToolRegistry:
 
         definitions = FileTools(workspace).definitions()
         definitions.extend(WebTools(settings, record=record).definitions())
-        definitions.extend(TodoTools(record=record, report=report).definitions())
+        definitions.extend(TodoTools(record=record, report=report, current=current_todos).definitions())
         if allow_shell:
             definitions.extend(ShellTools(workspace).definitions())
         return cls(definitions)

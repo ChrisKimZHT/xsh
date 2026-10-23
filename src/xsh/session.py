@@ -142,6 +142,10 @@ class Session:
         line = json.dumps(event, ensure_ascii=False, allow_nan=False)
         with self.path.open("a", encoding="utf-8", newline="\n") as file:
             file.write(line + "\n")
+        if kind == "todos":  # 与加载时的重放保持一致，工具执行期间也能读到最新清单
+            todos = data.get("todos")
+            if isinstance(todos, list):
+                self.todos = todos
 
     def append(self, message: Message) -> None:
         """校验并保存消息，再更新内存状态"""

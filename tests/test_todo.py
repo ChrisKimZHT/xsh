@@ -36,9 +36,33 @@ def test_todo_update_records_formats_and_persists(tmp_path: Path) -> None:
 
 def test_todo_args_validation() -> None:
     with pytest.raises(ValidationError):
-        TodoArgs(todos=[])
+        TodoArgs()  # 必须指定 todos / add / complete / remove 之一
     with pytest.raises(ValidationError):
         TodoArgs(todos=[{"content": "x", "status": "bogus"}])
+
+
+def test_todo_incremental_add_complete_remove(tmp_path: Path) -> None:
+    session = Session.create(tmp_path / "s.jsonl", tmp_path, "system prompt")
+    tools = TodoTools(record=session.record, current=lambda: session.todos)
+
+    tools.update(TodoArgs(todos=[{"content": "a"}, {"content": "b"}, {"content": "c"}]))
+    assert "[ ] d" in tools.update(TodoArgs(add=["d"]))
+    assert "[x] a" in tools.update(TodoArgs(complete=[1]))
+    out = tools.update(TodoArgs(remove=[4]))
+    assert "[ ] d" not in out
+
+    assert [t["content"] for t in session.todos] == ["a", "b", "c"]
+    assert session.todos[0]["status"] == "completed"
+    with pytest.raises(ValueError, match="out of range"):
+        tools.update(TodoArgs(complete=[99]))
+
+
+def test_todo_replace_with_empty_list_clears(tmp_path: Path) -> None:
+    session = Session.create(tmp_path / "c.jsonl", tmp_path, "system prompt")
+    tools = TodoTools(record=session.record, current=lambda: session.todos)
+    tools.update(TodoArgs(todos=[{"content": "a"}]))
+    tools.update(TodoArgs(todos=[]))
+    assert session.todos == []
 
 
 def test_todo_is_registered_and_executes(tmp_path: Path) -> None:
