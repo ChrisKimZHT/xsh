@@ -22,6 +22,8 @@ from xsh.agent import Agent
 from xsh.background import BackgroundJobs
 from xsh.compaction import Compactor
 from xsh.config import STATE_DIRECTORY, Settings
+from xsh.doctor import render as render_doctor
+from xsh.doctor import run_checks
 from xsh.hooks import Hooks
 from xsh.maintenance import compact_session_file
 from xsh.mcp import load_servers, start_clients
@@ -212,6 +214,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--dump-prompt", action="store_true", help="Print the assembled system prompt and exit")
     result.add_argument("--list-tools", action="store_true", help="List the available tools and exit")
     result.add_argument("--list-skills", action="store_true", help="List the workspace skills and exit")
+    result.add_argument("--doctor", action="store_true", help="Run read-only environment checks and exit")
     result.add_argument("--compact-session", nargs="?", const=True, type=Path, help="Offline-compact a session file (default: most recent) and exit")
     result.add_argument("--print", action="store_true", dest="print_mode", help="Run a prompt without the interactive UI and print the result")
 
@@ -304,6 +307,17 @@ def main(argv: list[str] | None = None) -> int:
         except (ValidationError, OSError, ValueError) as error:
             print(f"xsh: {error}", file=sys.stderr)
             return 2
+
+    # 自检：只读检查工作区/配置/可选依赖，便于排障。
+    if args.doctor:
+        try:
+            workspace = (args.workspace or Path.cwd()).resolve(strict=True)
+            settings = _settings_from_args(args)
+        except (ValidationError, OSError, ValueError) as error:
+            print(f"xsh: {error}", file=sys.stderr)
+            return 2
+        print(render_doctor(run_checks(workspace, settings, _allow_shell(args))))
+        return 0
 
     # 无终端模式：--print 直接执行 prompt 并打印结果，便于脚本化调用。
     if args.print_mode:
@@ -569,6 +583,9 @@ def main(argv: list[str] | None = None) -> int:
                         return 0
                     case "/stats":
                         terminal.stats(session)
+                        return 0
+                    case "/doctor":
+                        terminal.report("config", render_doctor(run_checks(workspace, settings, allow_shell)))
                         return 0
                     case "/help" | "/?":
                         terminal.intro()

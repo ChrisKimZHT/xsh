@@ -40,6 +40,7 @@ _INTRO = """\
 - `/sessions` — List saved sessions in this workspace
 - `/export [file]` — Write the conversation (plus todos/memory) to a Markdown transcript
 - `/help` — Show this help
+- `/doctor` — Run read-only environment checks
 - `/compact` — Summarize older context and retain recent messages
 - `/quit` — Quit xsh
 
