@@ -70,3 +70,9 @@ def test_nested_agents_md_skips_reserved_directories(tmp_path: Path) -> None:
     (hidden / "AGENTS.md").write_text("hidden rules", encoding="utf-8")
     prompt = build_prompt(tmp_path, model="m", tools=_Tools())
     assert "hidden rules" not in prompt
+
+
+def test_build_prompt_includes_memory_and_skills(tmp_path: Path) -> None:
+    prompt = build_prompt(tmp_path, model="m", tools=_Tools(), memory="REMEMBER THIS", skills="- skill-a: does a")
+    assert "REMEMBER THIS" in prompt
+    assert "- skill-a: does a" in prompt
