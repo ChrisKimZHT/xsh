@@ -5,7 +5,10 @@ from pathlib import Path
 
 import pytest
 
+from xsh.config import Settings
+from xsh.messages import ToolCall
 from xsh.permissions import Permissions
+from xsh.tools.base import ToolRegistry
 from xsh.tools.files import FileTools, ReadArgs, WriteArgs
 from xsh.tools.shell import ShellArgs, ShellTools
 
@@ -44,3 +47,10 @@ def test_shell_tool_denies_matching_command(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="denied by the permission policy"):
         tools.execute(ShellArgs(command="rm -rf /"))
     assert "ok" in tools.execute(ShellArgs(command="echo ok"))
+
+
+def test_registry_wires_permissions(tmp_path: Path) -> None:
+    settings = Settings(base_url="https://api.example/v1", model="m", api_key="k")
+    registry = ToolRegistry.default(tmp_path, settings, permissions=Permissions(deny_paths=["*.secret"]))
+    call = ToolCall(id="1", name="write", arguments=json.dumps({"file_path": "a.secret", "content": "x"}))
+    assert "denied by the permission policy" in registry.execute(call).content
