@@ -42,6 +42,7 @@ _NAT64_SENTINELS = {ipaddress.IPv4Address("192.0.0.170"), ipaddress.IPv4Address(
 
 class SearchArgs(ToolArgs):
     queries: list[str] = Field(min_length=1, max_length=4, description="1–4 search queries; results are merged.")
+    max_results: int = Field(default=_MAX_RESULTS, ge=1, le=_MAX_RESULTS, description="Maximum number of sources to return.")
 
     @field_validator("queries")
     @classmethod
@@ -324,7 +325,7 @@ class WebTools:
                 if rank < len(result):
                     sources.setdefault(result[rank]["url"], result[rank])
         lines = []
-        for source in list(sources.values())[:_MAX_RESULTS]:
+        for source in list(sources.values())[:args.max_results]:
             line = f"- [{source.get('title') or source['url']}]({source['url']})"
             if source.get("snippet"):
                 line += " — " + source["snippet"]
@@ -332,8 +333,8 @@ class WebTools:
                 line += f" ({source['date']})"
             lines.append(line)
         text = _EXTERNAL_NOTICE + "\n\n" + ("Sources:\n" + "\n".join(lines) if lines else "No results found.")
-        if len(sources) > _MAX_RESULTS:
-            text += f"\n\n(Showing the first {_MAX_RESULTS} sources. Refine the query for more.)"
+        if len(sources) > args.max_results:
+            text += f"\n\n(Showing the first {args.max_results} sources. Refine the query for more.)"
         return bounded(text + "\n\nCite the relevant URLs above as Markdown links in your answer.")
 
     def fetch(self, args: FetchArgs) -> str:

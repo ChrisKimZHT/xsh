@@ -100,6 +100,13 @@ def test_search_formats_sources(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "[A](https://a.test)" in out
 
 
+def test_search_respects_max_results(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(WebTools, "_search", lambda self, body: [{"url": f"https://{i}.test", "title": f"T{i}"} for i in range(5)])
+    out = WebTools(_settings()).search(SearchArgs(queries=["q"], max_results=2))
+    assert out.count("](https://") == 2
+    assert "first 2 sources" in out
+
+
 def test_fetch_formats_and_truncates(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(web, "_fetch_page", lambda value: (value, 200, "text", "body text", False))
     out = WebTools(_settings()).fetch(FetchArgs(url="https://example.com"))
