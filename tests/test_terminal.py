@@ -65,3 +65,13 @@ def test_error_goes_to_its_console(terminal: tuple[Terminal, io.StringIO]) -> No
     term, buffer = terminal
     term.error("boom")
     assert "boom" in buffer.getvalue()
+
+
+def test_find_reports_matches(terminal: tuple[Terminal, io.StringIO], tmp_path: Path) -> None:
+    term, buffer = terminal
+    session = Session.create(tmp_path / "s.jsonl", tmp_path, "system prompt")
+    session.append(Message(role="user", content="find this HELLO"))
+    term.find(session, "hello")
+    assert "match" in buffer.getvalue()
+    term.find(session, "absent-token")
+    assert "No matches" in buffer.getvalue()

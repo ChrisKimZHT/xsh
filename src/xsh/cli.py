@@ -23,6 +23,7 @@ from xsh.session import Session
 from xsh.terminal import Terminal
 from xsh.tools.base import ToolRegistry
 from xsh.tools.task import TaskTools
+from xsh.tools.todo import format_todos
 
 _SESSION_DIRECTORY = Path(STATE_DIRECTORY) / "sessions"
 
@@ -216,6 +217,8 @@ def main(argv: list[str] | None = None) -> int:
             session.update_system_prompt(system_prompt)
             terminal.session(session.path)
             terminal.system_prompt(session.messages[0].content or "")
+            if session.todos:  # 恢复后先展示持久化的任务清单，便于续作
+                terminal.report("todos", format_todos(session.todos))
 
             agent = Agent(
                 model=model,
@@ -265,6 +268,16 @@ def main(argv: list[str] | None = None) -> int:
                         return None
                     case "/list" | "/history" | "/h":
                         terminal.history(session)
+                        return 0
+                    case "/todos" | "/todo":
+                        terminal.report("todos", format_todos(session.todos) if session.todos else "No todos on record.")
+                        return 0
+                    case _ if prompt.strip().startswith("/find"):
+                        needle = prompt.strip()[len("/find"):].strip()
+                        if not needle:
+                            terminal.report("find", "Usage: /find <text>")
+                        else:
+                            terminal.find(session, needle)
                         return 0
                     case "/compact" | "/z":
                         try:

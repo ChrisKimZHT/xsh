@@ -26,6 +26,8 @@ _INTRO = """\
 
 ### Commands
 - `/list` — Show conversation history
+- `/find <text>` — Search the conversation for text
+- `/todos` — Show the persisted task list
 - `/compact` — Summarize older context and retain recent messages
 - `/quit` — Quit xsh
 """
@@ -146,6 +148,9 @@ class Terminal:
             self.console.print(Panel(Text(text), title="Todos", title_align="left", border_style="magenta", expand=False))
 
         elif kind == "subtask":  # 子代理进度
+            self.console.print(Text(text, style="dim"))
+
+        elif kind == "find":  # /find 用法提示等
             self.console.print(Text(text, style="dim"))
 
         elif kind == "assistant_start":  # 模型开始输出
@@ -312,4 +317,21 @@ class Terminal:
                     self.console.print(Text(message.content))
             for call in message.tool_calls:
                 self.console.print(Text(f"  {call.name}({call.arguments})", style="dim"))
+
+    def find(self, session: Session, needle: str) -> None:
+        """在会话消息中查找文本并打印最近若干条匹配。"""
+        needle_lower = needle.lower()
+        hits = [
+            (index, message, position)
+            for index, (message, position) in enumerate(zip(session.messages, session.message_positions, strict=True))
+            if needle_lower in (message.content or "").lower()
+        ]
+        if not hits:
+            self.console.print(Text(f"No matches for {needle!r}.", style="dim"))
+            return
+        self.console.print(Text(f"{len(hits)} match(es) for {needle!r} (showing up to 10):", style="cyan"))
+        for index, message, position in hits[-10:]:
+            snippet = " ".join((message.content or "").split())[:120]
+            where = f"Turn {position[0]}, step {position[1]}" if position else "system/summary"
+            self.console.print(Text(f"  [{index}] {message.role} ({where}): {snippet}", style="dim"))
 
