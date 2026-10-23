@@ -14,6 +14,10 @@ class SkillLibrary:
     def __init__(self, directory: Path):
         self.directory = Path(directory)
 
+    def reload(self) -> None:
+        """技能每次调用都从磁盘读取，此处仅为与记忆/权限保持一致的接口。"""
+        return None
+
     def _files(self) -> list[Path]:
         if not self.directory.is_dir():
             return []

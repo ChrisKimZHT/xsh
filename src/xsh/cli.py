@@ -536,11 +536,13 @@ def main(argv: list[str] | None = None) -> int:
                         return 0
                     case "/reload":
                         memory_store.reload()
+                        skills_library.reload()
+                        permissions.reload()
                         session.update_system_prompt(build_prompt(
                             workspace, model=settings.model, tools=tools, non_stop_mode=non_stop_mode,
                             memory=memory_store.render(), skills=skills_library.render_index(),
                         ))
-                        terminal.report("config", f"Reloaded memory and skills (memory={len(memory_store.entries)}, skills={len(skills_library.names())}).")
+                        terminal.report("config", f"Reloaded memory, skills and permissions (memory={len(memory_store.entries)}, skills={len(skills_library.names())}, {permissions.summary()}).")
                         return 0
                     case "/skills":
                         terminal.report("skills", skills_library.render_index() or "(no skills)")

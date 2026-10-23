@@ -21,24 +21,39 @@ class Permissions:
         self.deny_commands = [pattern for pattern in (deny_commands or []) if pattern]
         self.deny_urls = [pattern for pattern in (deny_urls or []) if pattern]
         self.workspace = Path(workspace).resolve() if workspace is not None else None
+        self._source: Path | None = None
 
     @classmethod
     def load(cls, path: Path, workspace: Path | None = None) -> "Permissions":
         path = Path(path)
+        instance = cls(workspace=workspace)
+        instance._source = path
         if not path.is_file():
-            return cls(workspace=workspace)
+            return instance
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            return cls(workspace=workspace)
+            return instance
         if not isinstance(raw, dict):
-            return cls(workspace=workspace)
+            return instance
 
         def as_list(key: str) -> list[str]:
             value = raw.get(key)
             return [str(item) for item in value] if isinstance(value, list) else []
 
-        return cls(as_list("deny_paths"), as_list("deny_commands"), as_list("deny_urls"), workspace=workspace)
+        instance.deny_paths = as_list("deny_paths")
+        instance.deny_commands = as_list("deny_commands")
+        instance.deny_urls = as_list("deny_urls")
+        return instance
+
+    def reload(self) -> None:
+        """重新从源文件读取策略并就地更新（工具持有同一对象引用）。"""
+        if self._source is None:
+            return
+        fresh = Permissions.load(self._source, workspace=self.workspace)
+        self.deny_paths = fresh.deny_paths
+        self.deny_commands = fresh.deny_commands
+        self.deny_urls = fresh.deny_urls
 
     def path_allowed(self, path: Path) -> bool:
         path = Path(path)

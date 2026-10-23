@@ -36,6 +36,17 @@ def test_deny_paths_match_relative_paths(tmp_path: Path) -> None:
     assert permissions.path_allowed(tmp_path / "src" / "a.py")
 
 
+def test_reload_rereads_the_source_file(tmp_path: Path) -> None:
+    source = tmp_path / "permissions.json"
+    source.write_text(json.dumps({"deny_paths": ["*.a"]}), encoding="utf-8")
+    permissions = Permissions.load(source, workspace=tmp_path)
+    assert not permissions.path_allowed(tmp_path / "x.a")
+    source.write_text(json.dumps({"deny_commands": ["rm *"]}), encoding="utf-8")
+    permissions.reload()
+    assert permissions.path_allowed(tmp_path / "x.a")
+    assert not permissions.command_allowed("rm x")
+
+
 def test_file_tool_denies_matching_write_and_read(tmp_path: Path) -> None:
     permissions = Permissions(deny_paths=["*.secret"])
     tools = FileTools(tmp_path, permissions=permissions)
