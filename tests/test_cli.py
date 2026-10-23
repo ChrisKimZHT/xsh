@@ -65,3 +65,13 @@ def test_dump_prompt_prints_system_prompt(tmp_path: Path, capsys: pytest.Capture
     monkeypatch.setenv("XSH_API_KEY", "k")
     assert main(["--dump-prompt", "--workspace", str(tmp_path)]) == 0
     assert "You are an AI agent powered by xsh." in capsys.readouterr().out
+
+
+def test_list_tools_prints_names(tmp_path: Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("XSH_BASE_URL", "https://example/v1")
+    monkeypatch.setenv("XSH_MODEL", "m")
+    monkeypatch.setenv("XSH_API_KEY", "k")
+    assert main(["--list-tools", "--workspace", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "read\t" in out
+    assert "todo\t" in out

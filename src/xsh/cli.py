@@ -98,6 +98,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--version", action="version", version=f"%(prog)s {version('xsh-agent')}")
     result.add_argument("--list-sessions", action="store_true", help="List saved sessions for the workspace and exit")
     result.add_argument("--dump-prompt", action="store_true", help="Print the assembled system prompt and exit")
+    result.add_argument("--list-tools", action="store_true", help="List the available tools and exit")
 
     # 覆盖 .env 配置的命令行参数
     result.add_argument("--base-url", help="OpenAI-compatible API base URL")
@@ -146,13 +147,17 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {when}  {size:>10}  {name}")
         return 0
 
-    # 打印系统提示词同样不需要终端；便于脚本化检查提示词组装结果。
-    if args.dump_prompt:
+    # 打印系统提示词 / 工具清单同样不需要终端；便于脚本化检查。
+    if args.dump_prompt or args.list_tools:
         try:
             workspace = (args.workspace or Path.cwd()).resolve(strict=True)
             settings = _settings_from_args(args)
             tools = ToolRegistry.default(workspace, settings, allow_shell=args.allow_shell)
-            print(build_prompt(workspace, model=settings.model, tools=tools, non_stop_mode=args.non_stop_mode))
+            if args.list_tools:
+                for name, tool in sorted(tools.tools.items()):
+                    print(f"{name}\t{tool.description}")
+            else:
+                print(build_prompt(workspace, model=settings.model, tools=tools, non_stop_mode=args.non_stop_mode))
             return 0
         except (ValidationError, OSError, ValueError) as error:
             print(f"xsh: {error}", file=sys.stderr)
