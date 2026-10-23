@@ -38,3 +38,17 @@ def test_shell_requires_an_executable(tmp_path: Path, monkeypatch: pytest.Monkey
     monkeypatch.setattr("shutil.which", lambda name: None)
     with pytest.raises(ValueError, match="required"):
         ShellTools(tmp_path)
+
+
+def test_cwd_parameter_runs_in_subdirectory(shell: ShellTools, tmp_path: Path) -> None:
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "marker.txt").write_text("x", encoding="utf-8")
+    out = shell.execute(ShellArgs(command="ls", cwd="sub"))
+    assert "marker.txt" in out
+
+
+def test_cwd_must_stay_in_workspace(shell: ShellTools, tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="inside the workspace"):
+        shell.execute(ShellArgs(command="ls", cwd=".."))
+    with pytest.raises(ValueError, match="inside the workspace"):
+        shell.execute(ShellArgs(command="ls", cwd="does-not-exist"))

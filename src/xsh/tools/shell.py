@@ -20,6 +20,7 @@ class ShellArgs(ToolArgs):
         min_length=1, description="A foreground command in the advertised dialect."
     )
     timeout_seconds: int = Field(default=120, ge=1, le=_MAX_TIMEOUT_SECONDS)
+    cwd: str | None = Field(default=None, description="Optional working directory inside the workspace.")
 
 
 def _stop(process: subprocess.Popen) -> None:
@@ -53,6 +54,12 @@ class ShellTools:
         self.dialect = "PowerShell" if self.windows else "bash"
 
     def execute(self, args: ShellArgs) -> str:
+        cwd = self.workspace
+        if args.cwd:
+            candidate = (self.workspace / args.cwd).resolve()
+            if not candidate.is_relative_to(self.workspace) or not candidate.is_dir():
+                raise ValueError("cwd must be an existing directory inside the workspace")
+            cwd = candidate
         command = args.command
         if self.windows:
             command = (
@@ -72,7 +79,7 @@ class ShellTools:
         with tempfile.TemporaryFile() as output:
             process = subprocess.Popen(
                 argv,
-                cwd=self.workspace,
+                cwd=cwd,
                 stdin=subprocess.DEVNULL,
                 stdout=output,
                 stderr=subprocess.STDOUT,
@@ -106,7 +113,8 @@ class ShellTools:
                 ShellArgs,
                 self.execute,
                 guidance=(
-                    "Your shell tool runs foreground commands with the workspace as its working directory. "
+                    "Your shell tool runs foreground commands with the workspace as its working directory "
+                    "(set `cwd` to a subdirectory inside the workspace if needed). "
                     "It is not sandboxed and has no persistent terminal or background job support. "
                     "Use the shell dialect advertised in its tool description. Use it for tests and build commands.\n\n"
                     "Check the [exit code: N] marker on every shell result; investigate failures and "
