@@ -171,11 +171,15 @@ class Terminal:
             self._stop_tool()
             # Turn 起始使用粗分隔线，后续 Step 使用细分隔线，便于滚动查找。
             first_step = text.endswith(", Step 1")
+            characters = "━" if first_step else "─"
+            style = "cyan" if first_step else "blue"
+            heading = Text(f"{characters * 2} ", style=style)
+            heading.append(text, style=f"bold {style}")
             self.console.print()
             self.console.rule(
-                Text(text, style="bold cyan" if first_step else "bold blue"),
-                characters="━" if first_step else "─",
-                style="cyan" if first_step else "blue",
+                heading,
+                characters=characters,
+                style=style,
                 align="left",
             )
 
