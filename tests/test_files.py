@@ -77,3 +77,15 @@ def test_glob_rejects_absolute_and_parent(tools: FileTools) -> None:
         tools.glob(GlobArgs(pattern="/etc/*"))
     with pytest.raises(ValueError):
         tools.glob(GlobArgs(pattern="../*"))
+
+
+def test_grep_regex_ignore_case_and_context(tools: FileTools) -> None:
+    tools.write(WriteArgs(file_path="x.txt", content="alpha\nBETA\ngamma\n"))
+
+    regex = tools.grep(GrepArgs(pattern=r"\b(beta|gamma)\b", glob="*.txt", regex=True, ignore_case=True, context=1))
+    assert "x.txt:2: BETA" in regex
+    assert "x.txt-1- alpha" in regex  # 上下文行用 '-' 分隔
+    assert "x.txt:3: gamma" in regex
+
+    with pytest.raises(ValueError, match="Invalid regular expression"):
+        tools.grep(GrepArgs(pattern="(", glob="*.txt", regex=True))

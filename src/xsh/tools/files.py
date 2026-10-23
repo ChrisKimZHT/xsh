@@ -3,6 +3,7 @@
 import fnmatch
 import hashlib
 import os
+import re
 import tempfile
 from pathlib import Path
 
@@ -45,9 +46,12 @@ class GlobArgs(ToolArgs):
 
 class GrepArgs(ToolArgs):
     pattern: str = Field(
-        min_length=1, description="Literal text to find; NOT a regular expression."
+        min_length=1, description="Text to find. Literal by default; set regex=true to use a regular expression."
     )
     glob: str = Field(default="*", min_length=1)
+    regex: bool = Field(default=False, description="Treat the pattern as a Python regular expression.")
+    ignore_case: bool = Field(default=False, description="Case-insensitive matching.")
+    context: int = Field(default=0, ge=0, le=3, description="Lines of context to show before and after each match.")
 
 
 _FILE_GUIDANCE = (
@@ -193,7 +197,21 @@ class FileTools:
         return bounded("\n".join(matches) or "No files matched.")
 
     def grep(self, args: GrepArgs) -> str:
-        matches = []
+        if args.regex:
+            try:
+                compiled = re.compile(args.pattern, re.IGNORECASE if args.ignore_case else 0)
+            except re.error as error:
+                raise ValueError(f"Invalid regular expression: {error}") from None
+
+            def hit(line: str) -> bool:
+                return compiled.search(line) is not None
+        else:
+            needle = args.pattern.lower() if args.ignore_case else args.pattern
+
+            def hit(line: str) -> bool:
+                return needle in (line.lower() if args.ignore_case else line)
+
+        matches: list[str] = []
         skipped = 0
         for path, name in self._paths(args.glob):
             try:
@@ -201,13 +219,22 @@ class FileTools:
             except (OSError, UnicodeError, ValueError):
                 skipped += 1
                 continue
-            for number, line in enumerate(lines, 1):
-                if args.pattern in line:
-                    matches.append(f"{name}:{number}: {line}")
-                    if len(matches) == _RESULT_LIMIT:
-                        return bounded(
-                            "\n".join(matches) + "\n[Match limit reached; narrow the search.]"
-                        )
+            hits = [number for number, line in enumerate(lines, 1) if hit(line)]
+            if not hits:
+                continue
+            if args.context <= 0:
+                rows = [(number, number in hits) for number in hits]
+            else:
+                wanted: set[int] = set()
+                for number in hits:
+                    wanted.update(range(max(1, number - args.context), min(len(lines), number + args.context) + 1))
+                hit_set = set(hits)
+                rows = [(number, number in hit_set) for number in sorted(wanted)]
+            for number, is_match in rows:
+                separator = ":" if is_match else "-"
+                matches.append(f"{name}{separator}{number}{separator} {lines[number - 1]}")
+                if len(matches) == _RESULT_LIMIT:
+                    return bounded("\n".join(matches) + "\n[Match limit reached; narrow the search.]")
         footer = f"\n[Skipped {skipped} unreadable, binary, or oversized files.]" if skipped else ""
         return bounded(("\n".join(matches) or "No matches.") + footer)
 
@@ -254,13 +281,14 @@ class FileTools:
             ),
             Tool(
                 "grep",
-                f"Search UTF-8 files for literal text. Returns at most {_RESULT_LIMIT} matching lines.",
+                f"Search UTF-8 files for text (literal by default; regex optional). Returns at most {_RESULT_LIMIT} matching lines.",
                 GrepArgs,
                 self.grep,
                 prompt_sections=(PromptSection("files:policy", 200, _FILE_GUIDANCE),),
                 guidance=(
-                    'Use the grep tool — not shell grep or rg — to search file contents. Its pattern is literal text, not a '
-                    'regular expression. Use read on a matched file when you need surrounding context.'
+                    'Use the grep tool — not shell grep or rg — to search file contents. The pattern is literal unless you set '
+                    'regex=true; set ignore_case for case-insensitive matches and context>0 to show surrounding lines. '
+                    'Use read on a matched file when you need more context.'
                 ),
             ),
         ]
