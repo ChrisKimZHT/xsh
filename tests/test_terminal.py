@@ -1,0 +1,67 @@
+"""Tests for terminal event rendering, using an injected in-memory console."""
+
+import io
+from pathlib import Path
+
+import pytest
+from rich.console import Console
+
+import xsh.terminal as terminal_module
+from xsh.agent import TurnResult
+from xsh.messages import Message
+from xsh.session import Session
+from xsh.terminal import Terminal
+
+
+@pytest.fixture
+def terminal(monkeypatch: pytest.MonkeyPatch) -> tuple[Terminal, io.StringIO]:
+    buffer = io.StringIO()
+
+    def factory(*args, **kwargs):  # noqa: ANN001
+        kwargs.pop("stderr", None)
+        return Console(file=buffer, force_terminal=True, width=100, height=40)
+
+    monkeypatch.setattr(terminal_module, "Console", factory)
+    return Terminal(), buffer
+
+
+def test_report_events_render_without_crashing(terminal: tuple[Terminal, io.StringIO]) -> None:
+    term, buffer = terminal
+    for kind, text in [
+        ("turn_start", ""),
+        ("readiness", "[xsh] ready"),
+        ("retry", "Transient error; retry 1/10"),
+        ("recovery", "Recovered 1 tool call"),
+        ("compaction", "compacting"),
+        ("step", "Turn 1, Step 1"),
+        ("tool", "shell"),
+        ("tool_start", ""),
+        ("tool_end", ""),
+    ]:
+        term.report(kind, text)
+    output = buffer.getvalue()
+    assert "Turn 1, Step 1" in output
+    assert "[xsh] ready" in output
+
+
+def test_outcome_and_history_render(terminal: tuple[Terminal, io.StringIO], tmp_path: Path) -> None:
+    term, buffer = terminal
+    result = TurnResult(status="completed", steps=2, text="hi", usage={"prompt_tokens": 10, "completion_tokens": 2, "total_tokens": 12}, context_tokens=5)
+    term.context_window = 1000
+    term.outcome(result)
+
+    session = Session.create(tmp_path / "s.jsonl", tmp_path, "system prompt")
+    session.append(Message(role="user", content="hello"))
+    session.append(Message(role="assistant", content="world"))
+    term.history(session)
+
+    output = buffer.getvalue()
+    assert "Status: Completed" in output
+    assert "hello" in output
+    assert "Turn 1" in output
+
+
+def test_error_goes_to_its_console(terminal: tuple[Terminal, io.StringIO]) -> None:
+    term, buffer = terminal
+    term.error("boom")
+    assert "boom" in buffer.getvalue()
