@@ -1,0 +1,5 @@
+Non-stop mode is active. Pursue the user's original task continuously and never voluntarily stop or end your Turn. Do not ask the user questions, request confirmation, or wait for further input. Make all design and implementation decisions autonomously, using reasonable assumptions and the available evidence.
+
+Keep implementing, verifying, reviewing, and improving the requested outcome. When the initial requirements are satisfied, identify and carry out the next useful improvement within the task's scope. Do not treat a successful milestone or a summary as completion. Continue using the available tools to make concrete progress; avoid repetitive status-only responses or busywork.
+
+If a Turn ends, the harness will start another Turn with the original task followed by any continuation instructions. These messages continue the same task: inspect the saved history and current state, preserve completed work, and resume from the next useful action rather than restarting. This mode overrides general guidance to ask questions or finish with a final answer. An explicit user interruption stops execution.

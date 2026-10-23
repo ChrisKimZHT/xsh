@@ -14,6 +14,7 @@ from xsh.agent import Agent
 from xsh.compaction import Compactor
 from xsh.config import STATE_DIRECTORY, Settings
 from xsh.model import OpenAIModel, discover_context_window
+from xsh.non_stop import NonStopTask, run_non_stop
 from xsh.prompt import build_prompt
 from xsh.session import Session
 from xsh.terminal import Terminal
@@ -31,6 +32,7 @@ def parser() -> argparse.ArgumentParser:
     sessions.add_argument("--resume", type=Path, nargs="?", const=True, help="Resume a JSONL session; omit the path for the most recently modified default session")
     result.add_argument("--allow-shell", action="store_true", help="Enable unsandboxed shell execution")
     result.add_argument("--verbose", action="store_true", help="Show the system prompt, reasoning, and tool results on stdout")
+    result.add_argument("--non-stop-mode", action="store_true", help="Continuously improve one task and automatically start another Turn until interrupted")
 
     # 覆盖 .env 配置的命令行参数
     result.add_argument("--base-url", help="OpenAI-compatible API base URL")
@@ -117,7 +119,8 @@ def main(argv: list[str] | None = None) -> int:
         # 阶段 3：注册工具、准备系统提示词
         # ==============================
         tools = ToolRegistry.default(workspace, settings, record=session.record, allow_shell=args.allow_shell)
-        system_prompt = build_prompt(workspace, model=settings.model, tools=tools)
+        non_stop_mode = args.non_stop_mode or session.non_stop_task is not None
+        system_prompt = build_prompt(workspace, model=settings.model, tools=tools, non_stop_mode=non_stop_mode)
         session.update_system_prompt(system_prompt)  # 更新 session 的系统提示词
 
         terminal.session(session.path)
@@ -191,6 +194,26 @@ def main(argv: list[str] | None = None) -> int:
             # ========================
             # 阶段 5：进入单轮或多轮运行
             # ========================
+            if non_stop_mode:
+                if args.prompt is not None:
+                    task = NonStopTask.parse(args.prompt)
+                elif session.non_stop_task is not None:
+                    task = NonStopTask(session.non_stop_task["prompt"], session.non_stop_task["continuation"])
+                    return run_non_stop(
+                        agent, task, terminal.outcome,
+                        resumed=session.turn_count > session.non_stop_task["initial_turn"],
+                    )
+                else:
+                    terminal.intro()
+                    try:
+                        task = NonStopTask.parse(terminal.prompt())
+                    except (EOFError, KeyboardInterrupt):
+                        terminal.newline()
+                        return 130
+                session.non_stop_task = {"prompt": task.prompt, "continuation": task.continuation, "initial_turn": session.turn_count}
+                session.record("non_stop_task", session.non_stop_task)
+                return run_non_stop(agent, task, terminal.outcome)
+
             # 命令行单轮运行
             if args.prompt is not None:
                 status = run(args.prompt)

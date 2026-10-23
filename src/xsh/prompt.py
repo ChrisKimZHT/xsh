@@ -40,7 +40,7 @@ def render_prompt(sections: Iterable[PromptSection]) -> str:
     )
 
 
-def build_prompt(workspace: Path, *, model: str, tools: "ToolRegistry") -> str:
+def build_prompt(workspace: Path, *, model: str, tools: "ToolRegistry", non_stop_mode: bool = False) -> str:
     """Assemble identity, general guidance, active tools and workspace instructions."""
     workspace = workspace.resolve()
     sections = [
@@ -59,4 +59,6 @@ def build_prompt(workspace: Path, *, model: str, tools: "ToolRegistry") -> str:
         if len(data) > _MAX_INSTRUCTIONS_BYTES:
             raise ValueError(f"Root AGENTS.md exceeds {_MAX_INSTRUCTIONS_BYTES} bytes; shorten it before starting")
         sections.append(PromptSection("context:project", 1100, "Project instructions (AGENTS.md):\n\n" + data.decode("utf-8")))
+    if non_stop_mode:
+        sections.append(PromptSection("harness:non-stop", 1200, files("xsh").joinpath("prompts/non-stop.md").read_text(encoding="utf-8")))
     return render_prompt(sections)

@@ -22,6 +22,7 @@ class Session:
         self.message_positions: list[tuple[int, int] | None] = []  # None 表示系统消息，(turn, step) 表示原始消息的轮次和步骤
         self.pending: dict[str, ToolCall] = {}  # 尚未收到结果的工具调用
         self.started: set[str] = set()          # 已记录开始执行、尚未收到结果的调用 ID
+        self.non_stop_task: dict[str, Any] | None = None
 
     @classmethod
     def create(cls, path: Path, workspace: Path, system_prompt: str) -> "Session":
@@ -56,7 +57,9 @@ class Session:
 
         # 按事件顺序重建消息及工具调用状态，不重新写入已有记录。
         for event in events[1:]:
-            if event["type"] == "message":
+            if event["type"] == "non_stop_task":
+                session.non_stop_task = event["data"]
+            elif event["type"] == "message":
                 session._accept(Message.model_validate(event["data"]))
             elif event["type"] == "system_prompt":  # 如果在 1: 后找到系统提示词事件，则是更新了系统提示词，替换旧的系统消息
                 if not session.messages or session.messages[0].role != "system":
