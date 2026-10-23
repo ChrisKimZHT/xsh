@@ -1,6 +1,7 @@
 """cli.py - 主函数，准备会话、工具、模型，创建 Agent 并运行，维护 Turn 循环"""
 
 import argparse
+import atexit
 import shutil
 import signal
 import sys
@@ -21,6 +22,7 @@ from xsh.compaction import Compactor
 from xsh.config import STATE_DIRECTORY, Settings
 from xsh.hooks import Hooks
 from xsh.maintenance import compact_session_file
+from xsh.mcp import load_servers, start_clients
 from xsh.memory import MemoryStore
 from xsh.model import OpenAIModel, discover_context_window
 from xsh.non_stop import NonStopTask, run_non_stop
@@ -30,6 +32,7 @@ from xsh.session import Session, usage_totals
 from xsh.skills import SkillLibrary
 from xsh.terminal import Terminal
 from xsh.tools.base import ToolRegistry
+from xsh.tools.mcp import build_mcp_tools
 from xsh.tools.task import TaskTools
 from xsh.tools.todo import format_todos
 from xsh.transcript import export_transcript
@@ -350,6 +353,15 @@ def main(argv: list[str] | None = None) -> int:
                 return f"Background task {job_id} finished:\n{job['result']}"
 
             tools.add(TaskTools(run_subtask, start=start_background, status=task_status).definitions())
+
+            # 外部 MCP 服务器（可选）：连接后把其工具接入本地工具集。
+            mcp_clients = start_clients(load_servers(workspace / STATE_DIRECTORY / "mcp.json"), workspace)
+            if mcp_clients:
+                atexit.register(lambda: [client.close() for client in mcp_clients])
+                mcp_definitions = build_mcp_tools(mcp_clients)
+                if mcp_definitions:
+                    tools.add(mcp_definitions)
+                terminal.report("subtask", f"Connected {len(mcp_clients)} MCP server(s), {len(mcp_definitions)} tool(s)")
 
             # 系统提示词在工具集完整后构建，确保所有工具指导文案都进入提示词。
             system_prompt = build_prompt(workspace, model=settings.model, tools=tools, non_stop_mode=non_stop_mode, memory=memory_store.render(), skills=skills_library.render_index())

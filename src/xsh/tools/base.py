@@ -28,14 +28,16 @@ class Tool:
     output_limit: int = _OUTPUT_LIMIT
     guidance: str = ""
     prompt_sections: tuple[PromptSection, ...] = ()
+    schema_override: dict | None = None
 
     def schema(self) -> dict:
+        parameters = self.schema_override or self.parameters.model_json_schema()
         return {
             "type": "function",
             "function": {
                 "name": self.name,
                 "description": self.description,
-                "parameters": self.parameters.model_json_schema(),
+                "parameters": parameters,
             },
         }
 
