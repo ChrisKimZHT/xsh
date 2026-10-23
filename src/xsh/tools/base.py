@@ -62,6 +62,13 @@ class ToolRegistry:
         if len(self.tools) != len(tools):
             raise ValueError("Duplicate tool names")
 
+    def add(self, definitions: list[Tool]) -> None:
+        """追加工具（在构建系统提示词之前调用，确保其指导文案进入提示词）。"""
+        for tool in definitions:
+            if tool.name in self.tools:
+                raise ValueError(f"Duplicate tool name: {tool.name}")
+            self.tools[tool.name] = tool
+
     @classmethod
     def default(
         cls,

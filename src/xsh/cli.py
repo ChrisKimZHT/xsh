@@ -22,6 +22,7 @@ from xsh.readiness import build_record, new_boot_id, write_ready_file
 from xsh.session import Session
 from xsh.terminal import Terminal
 from xsh.tools.base import ToolRegistry
+from xsh.tools.task import TaskTools
 
 _SESSION_DIRECTORY = Path(STATE_DIRECTORY) / "sessions"
 
@@ -142,15 +143,10 @@ def main(argv: list[str] | None = None) -> int:
             session = Session.create(path, workspace, "")  # 此时系统提示词还没准备好，后续会更新
 
         # ==============================
-        # 阶段 3：注册工具、准备系统提示词
+        # 阶段 3：注册基础工具
         # ==============================
         tools = ToolRegistry.default(workspace, settings, record=session.record, report=terminal.report, allow_shell=args.allow_shell)
         non_stop_mode = args.non_stop_mode or session.non_stop_task is not None
-        system_prompt = build_prompt(workspace, model=settings.model, tools=tools, non_stop_mode=non_stop_mode)
-        session.update_system_prompt(system_prompt)  # 更新 session 的系统提示词
-
-        terminal.session(session.path)
-        terminal.system_prompt(session.messages[0].content or "")
 
         # ==============================
         # 阶段 4：初始化模型客户端与 Agent
@@ -159,7 +155,7 @@ def main(argv: list[str] | None = None) -> int:
             api_key=settings.api_key.get_secret_value(),
             base_url=settings.base_url,
             timeout=settings.request_timeout,
-            max_retries=settings.max_retries,  # OpenAI 库自带请求重试
+            max_retries=settings.max_retries,  # OpenAI 库自带重试
         ) as client:
             # 获取模型的上下文长度
             terminal.context_window = discover_context_window(client, settings.model, workspace / STATE_DIRECTORY) or settings.context_window
@@ -168,8 +164,28 @@ def main(argv: list[str] | None = None) -> int:
             if settings.auto_compact and terminal.context_window is None:
                 terminal.report("compaction", "Auto compaction needs --context-window or XSH_CONTEXT_WINDOW; /compact remains available.")
 
-            # 准备 Agent
             model = OpenAIModel(client, settings.model, settings.max_tokens)
+
+            # 委派工具：子代理使用独立会话与不含 task 的工具集（避免递归、隔离上下文）。
+            def run_subtask(prompt: str) -> str:
+                directory = workspace / STATE_DIRECTORY / "subtasks"
+                sub_session = Session.create(directory / f"{uuid4().hex}.jsonl", workspace, "")
+                sub_tools = ToolRegistry.default(workspace, settings, record=sub_session.record, allow_shell=args.allow_shell)
+                sub_session.update_system_prompt(build_prompt(workspace, model=settings.model, tools=sub_tools, non_stop_mode=False))
+                sub_agent = Agent(model=model, session=sub_session, tools=sub_tools, max_steps=settings.max_steps, report=lambda kind, text: None)
+                result = sub_agent.run(prompt)
+                report = f"Subagent: {result.status} ({result.steps} step(s))\n{result.text or result.error or '(no output)'}"
+                terminal.report("subtask", f"Subagent finished: {result.status}")
+                return report
+
+            tools.add(TaskTools(run_subtask).definitions())
+
+            # 系统提示词在工具集完整后构建，确保所有工具指导文案都进入提示词。
+            system_prompt = build_prompt(workspace, model=settings.model, tools=tools, non_stop_mode=non_stop_mode)
+            session.update_system_prompt(system_prompt)
+            terminal.session(session.path)
+            terminal.system_prompt(session.messages[0].content or "")
+
             agent = Agent(
                 model=model,
                 session=session,

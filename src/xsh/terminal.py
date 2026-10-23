@@ -145,6 +145,9 @@ class Terminal:
             self._stop_tool()
             self.console.print(Panel(Text(text), title="Todos", title_align="left", border_style="magenta", expand=False))
 
+        elif kind == "subtask":  # 子代理进度
+            self.console.print(Text(text, style="dim"))
+
         elif kind == "assistant_start":  # 模型开始输出
             self._text = ""
             self._reasoning = False
