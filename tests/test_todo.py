@@ -35,8 +35,7 @@ def test_todo_update_records_formats_and_persists(tmp_path: Path) -> None:
 
 
 def test_todo_args_validation() -> None:
-    with pytest.raises(ValidationError):
-        TodoArgs()  # 必须指定 todos / add / complete / remove 之一
+    assert TodoArgs().todos is None  # 空调用合法：仅查看当前清单
     with pytest.raises(ValidationError):
         TodoArgs(todos=[{"content": "x", "status": "bogus"}])
 
@@ -63,6 +62,15 @@ def test_todo_replace_with_empty_list_clears(tmp_path: Path) -> None:
     tools.update(TodoArgs(todos=[{"content": "a"}]))
     tools.update(TodoArgs(todos=[]))
     assert session.todos == []
+
+
+def test_todo_empty_call_views_current_list(tmp_path: Path) -> None:
+    session = Session.create(tmp_path / "v.jsonl", tmp_path, "system prompt")
+    tools = TodoTools(record=session.record, current=lambda: session.todos)
+    tools.update(TodoArgs(todos=[{"content": "a", "status": "completed"}]))
+    out = tools.update(TodoArgs())
+    assert out.startswith("Todo list:") and "[x] a" in out
+    assert [t["content"] for t in session.todos] == ["a"]  # 查看不改变清单
 
 
 def test_todo_is_registered_and_executes(tmp_path: Path) -> None:

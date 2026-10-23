@@ -19,6 +19,7 @@ _TODO_GUIDANCE = (
     "Use the todo tool to plan multi-step work and keep the list current. Either submit the "
     "complete list with `todos` (it replaces the previous one), or update incrementally with "
     "`add` (append pending items), `complete` (1-based indices), and `remove` (1-based indices). "
+    "Call it with no arguments to view the current list (useful after a restart). "
     "Mark exactly one item in_progress while working on it, and mark items completed as soon as "
     "they are done. The list persists in the session, so it survives restarts."
 )
@@ -41,8 +42,7 @@ class TodoArgs(ToolArgs):
 
     @model_validator(mode="after")
     def check_targets(self) -> "TodoArgs":
-        if self.todos is None and not self.add and not self.complete and not self.remove:
-            raise ValueError("Provide `todos` to replace, or `add`/`complete`/`remove`")
+        # 允许空调用：仅返回当前清单，便于恢复后查看；其余情况按提供的字段执行。
         return self
 
 
@@ -75,6 +75,8 @@ class TodoTools:
 
     def update(self, args: TodoArgs) -> str:
         items = [dict(item) for item in self.current()]
+        if args.todos is None and not args.add and not args.complete and not args.remove:
+            return "Todo list:\n" + format_todos(items)
         if args.todos is not None:
             items = [item.model_dump() for item in args.todos]
         if args.add:
@@ -96,7 +98,7 @@ class TodoTools:
         return [
             Tool(
                 "todo",
-                "Create or update the session's task list (replace with `todos`, or use `add`/`complete`/`remove`).",
+                "Create or update the session's task list (replace with `todos`, or use `add`/`complete`/`remove`; call with no arguments to view the current list).",
                 TodoArgs,
                 self.update,
                 guidance=_TODO_GUIDANCE,
