@@ -306,7 +306,11 @@ def main(argv: list[str] | None = None) -> int:
             print("xsh: --print requires a prompt (argument or stdin)", file=sys.stderr)
             return 2
         args.prompt = prompt
-        return run_print_mode(args)
+        try:
+            return run_print_mode(args)
+        except KeyboardInterrupt:  # SIGINT/SIGTERM：干净退出（130），不打印堆栈
+            print("xsh: interrupted", file=sys.stderr)
+            return 130
 
     # 仅支持终端输出；重定向或管道无法渲染动态界面，直接报错退出。
     try:
