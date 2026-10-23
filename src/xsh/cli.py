@@ -123,8 +123,6 @@ def run_print_mode(args: argparse.Namespace) -> int:
         print(f"xsh: {error}", file=sys.stderr)
         return 2
 
-    memory_store = MemoryStore(workspace / STATE_DIRECTORY / "memory.md")
-    skills_library = SkillLibrary(workspace / STATE_DIRECTORY / "skills")
     session_directory = workspace / _SESSION_DIRECTORY
 
     if args.fork is not None:
@@ -143,6 +141,9 @@ def run_print_mode(args: argparse.Namespace) -> int:
         filename = datetime.now().strftime("%Y%m%d-%H%M%S-") + uuid4().hex[:8] + ".jsonl"
         session = Session.create(args.session or session_directory / filename, workspace, "")
     workspace = session.workspace
+    # 记忆/技能库必须在确定最终 workspace（可能来自恢复的会话）之后再创建。
+    memory_store = MemoryStore(workspace / STATE_DIRECTORY / "memory.md")
+    skills_library = SkillLibrary(workspace / STATE_DIRECTORY / "skills")
 
     tools = ToolRegistry.default(
         workspace, settings, record=session.record, allow_shell=args.allow_shell,
