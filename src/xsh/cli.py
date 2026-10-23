@@ -1,6 +1,7 @@
 """cli.py - 主函数，准备会话、工具、模型，创建 Agent 并运行，维护 Turn 循环"""
 
 import argparse
+import signal
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -22,6 +23,15 @@ from xsh.terminal import Terminal
 from xsh.tools.base import ToolRegistry
 
 _SESSION_DIRECTORY = Path(STATE_DIRECTORY) / "sessions"
+
+
+def _handle_sigterm(signum: int, frame: object) -> None:
+    """把 SIGTERM 转为 KeyboardInterrupt，复用 Ctrl+C 的收尾路径。
+
+    这样外部监督脚本在需要强制停止时（C-c 无效后发送 SIGTERM），xsh 仍会
+    修复未完成的工具调用并记录 turn_end，而不是被直接终止。
+    """
+    raise KeyboardInterrupt
 
 
 def parser() -> argparse.ArgumentParser:
@@ -58,6 +68,12 @@ def main(argv: list[str] | None = None) -> int:
     # ============================================
     args = parser().parse_args(argv)
     load_dotenv(Path.cwd() / ".env", override=False)
+
+    # 仅在主线程可用时注册；失败不影响主流程。
+    try:
+        signal.signal(signal.SIGTERM, _handle_sigterm)
+    except (ValueError, OSError):
+        pass
 
     # 仅支持终端输出；重定向或管道无法渲染动态界面，直接报错退出。
     try:
