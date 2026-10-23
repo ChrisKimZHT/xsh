@@ -2,9 +2,11 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
+from xsh.config import Settings
 from xsh.messages import Message, ToolCall
 
 _OUTPUT_LIMIT = 64_000
@@ -48,6 +50,26 @@ class ToolRegistry:
         self.tools = {tool.name: tool for tool in tools}  # make a name->tool map
         if len(self.tools) != len(tools):
             raise ValueError("Duplicate tool names")
+
+    @classmethod
+    def default(
+        cls,
+        workspace: Path,
+        settings: Settings,
+        *,
+        record: Callable[[str, dict], None] | None = None,
+        allow_shell: bool = False,
+    ) -> "ToolRegistry":
+        """准备默认工具列表"""
+        from xsh.tools.files import FileTools
+        from xsh.tools.shell import ShellTools
+        from xsh.tools.web import WebTools
+
+        definitions = FileTools(workspace).definitions()
+        definitions.extend(WebTools(settings, record=record).definitions())
+        if allow_shell:
+            definitions.extend(ShellTools(workspace).definitions())
+        return cls(definitions)
 
     def schemas(self) -> list[dict]:
         """返回所有工具的 JSON Schema 列表"""
