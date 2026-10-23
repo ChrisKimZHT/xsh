@@ -1,7 +1,7 @@
 .ruff_cache
-.xsh
-.supervisor
-RESTART_FAILED.json
+# .xsh
+# .supervisor
+# RESTART_FAILED.json
 message-from-human-read-then-delete
 *.swp
 

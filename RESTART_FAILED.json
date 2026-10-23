@@ -1,0 +1,11 @@
+{
+  "failed_commit": "483e35dba4b622e74138605ab4b1e33f10b52061",
+  "failed_candidate_tag": "restart-candidate-20261023-135920",
+  "recovered_commit": "1b593a8d678e4223bc6c310a6fb5d4667ec18ee9",
+  "label": "feature-doctorsession",
+  "time": "2026-10-23T13:59:30.166624+00:00",
+  "summary": "Candidate build did not reach a healthy resumed session within the timeout.",
+  "log_dir": "/root/xsh-non-stop-mode/.supervisor/logs",
+  "pane_log": "/root/xsh-non-stop-mode/.supervisor/logs/pane-after-failure.log",
+  "supervisor_log": "/root/xsh-non-stop-mode/.supervisor/logs/supervisor.log"
+}

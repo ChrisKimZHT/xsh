@@ -1,0 +1,20 @@
+{
+  "good_commit": "1b593a8d678e4223bc6c310a6fb5d4667ec18ee9",
+  "good_tag": "known-good-latest",
+  "last_status": "blocked",
+  "target_session": "xsh",
+  "project_dir": "/root/xsh-non-stop-mode",
+  "label": "feature-doctorsession",
+  "candidate_commit": "483e35dba4b622e74138605ab4b1e33f10b52061",
+  "candidate_tag": "restart-candidate-20261023-135920",
+  "updated_at": "2026-10-23T13:59:20Z",
+  "target_pane": "%0",
+  "pane_pid": "843",
+  "session": "/root/xsh-non-stop-mode/.xsh/sessions/20261023-070937-192eb52e.jsonl",
+  "session_size_before": "4893400",
+  "current_command_after_stop": "bash",
+  "last_restart_at": "2026-10-23T13:55:14Z",
+  "last_pid": "82603",
+  "recovered": "0",
+  "running_commit": "1b593a8d678e4223bc6c310a6fb5d4667ec18ee9"
+}
