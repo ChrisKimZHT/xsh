@@ -17,11 +17,29 @@ class TurnResult:
     steps: int
     text: str = ""
     error: str = ""
+    retryable: bool = False
     usage: dict[str, int] = field(default_factory=dict)
     usage_partial: bool = False
     context_tokens: int | None = None
     cache_hit_rate: float | None = None
     cache_partial: bool = False
+
+
+# 与模型服务交互时可能出现的暂时性故障，适合稍后重试而不是直接结束进程。
+_TRANSIENT_STATUS_CODES = {408, 409, 425, 429, 500, 502, 503, 504}
+
+
+def is_transient_error(error: BaseException) -> bool:
+    """判断异常是否为可重试的暂时性故障（限流、超时、连接中断、5xx）。"""
+    try:
+        from openai import APIConnectionError, APIStatusError, APITimeoutError
+    except Exception:  # openai 不可用时不影响主流程
+        return False
+    if isinstance(error, (APIConnectionError, APITimeoutError)):
+        return True
+    if isinstance(error, APIStatusError):
+        return error.status_code in _TRANSIENT_STATUS_CODES
+    return False
 
 
 class Agent:
@@ -70,13 +88,14 @@ class Agent:
         # =================================
         # 统一收尾函数，汇总结果并记录轮次结束
         # =================================
-        def finish(status: str, text: str = "", error: str = "") -> TurnResult:
+        def finish(status: str, text: str = "", error: str = "", retryable: bool = False) -> TurnResult:
             """结束该 Turn：生成结果、停止工具状态刷新并落盘 turn_end"""
             result = TurnResult(
                 status=status,
                 steps=step,
                 text=text,
                 error=error,
+                retryable=retryable,
                 usage=usage.copy(),
                 usage_partial=usage_partial,
                 context_tokens=context_tokens,
@@ -91,6 +110,7 @@ class Agent:
                     "status": result.status,
                     "steps": result.steps,
                     "error": result.error,
+                    "retryable": result.retryable,
                     "usage": result.usage,
                     "usage_partial": result.usage_partial,
                     "context_tokens": result.context_tokens,
@@ -218,4 +238,4 @@ class Agent:
 
         except Exception as error:
             self.session.repair_pending()
-            return finish("error", error=f"{type(error).__name__}: {error}")
+            return finish("error", error=f"{type(error).__name__}: {error}", retryable=is_transient_error(error))

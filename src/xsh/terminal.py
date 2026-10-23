@@ -135,6 +135,9 @@ class Terminal:
         elif kind == "readiness":  # 启动就绪信号，供用户与日志确认本次启动成功
             self.console.print(Text(text, style="dim green"))
 
+        elif kind == "retry":  # 非停机模式下的暂时性故障重试提示
+            self.console.print(Text(text, style="yellow"))
+
         elif kind == "assistant_start":  # 模型开始输出
             self._text = ""
             self._reasoning = False

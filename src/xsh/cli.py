@@ -226,6 +226,7 @@ def main(argv: list[str] | None = None) -> int:
                     return run_non_stop(
                         agent, task, terminal.outcome,
                         resumed=session.turn_count > session.non_stop_task["initial_turn"],
+                        report=terminal.report,
                     )
                 else:
                     terminal.intro()
@@ -236,7 +237,7 @@ def main(argv: list[str] | None = None) -> int:
                         return 130
                 session.non_stop_task = {"prompt": task.prompt, "continuation": task.continuation, "initial_turn": session.turn_count}
                 session.record("non_stop_task", session.non_stop_task)
-                return run_non_stop(agent, task, terminal.outcome)
+                return run_non_stop(agent, task, terminal.outcome, report=terminal.report)
 
             # 命令行单轮运行
             if args.prompt is not None:

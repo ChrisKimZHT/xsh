@@ -1,13 +1,17 @@
 """model.py - 实现调用 OpenAI 库的相关模型请求逻辑"""
 
 import json
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol
 
-from openai import APIError, OpenAI
+from openai import APIError, APIStatusError, OpenAI
 
 from xsh.messages import Message, ModelResponse, ToolCall
+
+# 429 建连重试上限；超过后抛给上层按暂时性故障处理。
+_MAX_RATE_LIMIT_RETRIES = 20
 
 
 def _probe_context_window(client: OpenAI, model: str) -> int | None:
@@ -113,7 +117,23 @@ class OpenAIModel:
         # ===============================
         # 阶段 2：监控流式响应，按块累积结果
         # ===============================
-        with self.client.chat.completions.create(**request) as stream:  # 注意：OpenAI 库自带请求重试
+        # SDK 的有限次重试耗尽后，429 继续等待重试，不结束当前 Turn。
+        # 仅重试建立请求，避免流式输出后重新请求造成重复输出；重试次数有上限，
+        # 超过上限则抛出，交由上层按暂时性故障退避重试。
+        retry_delay = 1.0
+        attempts = 0
+        while True:
+            try:
+                stream = self.client.chat.completions.create(**request)
+                break
+            except APIStatusError as error:
+                if error.status_code != 429 or attempts >= _MAX_RATE_LIMIT_RETRIES:
+                    raise
+                attempts += 1
+                time.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, 60.0)
+
+        with stream:
             for chunk in stream:
                 if chunk.usage:
                     usage = chunk.usage.model_dump()
