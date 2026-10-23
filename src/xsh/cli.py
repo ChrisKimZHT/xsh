@@ -6,7 +6,6 @@ import json
 import shutil
 import signal
 import sys
-import threading
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -19,6 +18,7 @@ from openai import OpenAI
 from pydantic import ValidationError
 
 from xsh.agent import Agent
+from xsh.background import BackgroundJobs
 from xsh.compaction import Compactor
 from xsh.config import STATE_DIRECTORY, Settings
 from xsh.hooks import Hooks
@@ -412,40 +412,9 @@ def main(argv: list[str] | None = None) -> int:
                 return "\n\n".join(f"[{index + 1}] {report}" for index, report in enumerate(reports))
 
             # 后台子任务：立即返回句柄，由 task_status 轮询。
-            background_jobs: dict[str, dict] = {}
-            jobs_lock = threading.Lock()
+            jobs = BackgroundJobs(run_subtask)
 
-            def start_background(prompts: Sequence[str]) -> str:
-                job_id = uuid4().hex[:8]
-                with jobs_lock:
-                    background_jobs[job_id] = {"status": "running", "result": ""}
-
-                def worker() -> None:
-                    try:
-                        text = run_subtask(prompts)
-                    except Exception as error:  # noqa: BLE001
-                        text = f"error: {type(error).__name__}: {error}"
-                    with jobs_lock:
-                        background_jobs[job_id].update(status="done", result=text)
-
-                threading.Thread(target=worker, daemon=True).start()
-                return f'Background task {job_id} started. Poll with task_status(id="{job_id}").'
-
-            def task_status(job_id: str) -> str:
-                with jobs_lock:
-                    snapshot = {key: dict(value) for key, value in background_jobs.items()}
-                if not job_id:
-                    if not snapshot:
-                        return "No background tasks."
-                    return "Background tasks:\n" + "\n".join(f"- {key}: {value['status']}" for key, value in snapshot.items())
-                job = snapshot.get(job_id)
-                if job is None:
-                    return f"Unknown background task: {job_id}"
-                if job["status"] == "running":
-                    return f"Background task {job_id} is still running."
-                return f"Background task {job_id} finished:\n{job['result']}"
-
-            tools.add(TaskTools(run_subtask, start=start_background, status=task_status).definitions())
+            tools.add(TaskTools(run_subtask, start=jobs.start, status=jobs.status).definitions())
 
             # 外部 MCP 服务器（可选）：连接后把其工具接入本地工具集。
             mcp_servers = load_servers(workspace / STATE_DIRECTORY / "mcp.json")
@@ -534,7 +503,7 @@ def main(argv: list[str] | None = None) -> int:
                         terminal.report("skills", skills_library.render_index() or "(no skills)")
                         return 0
                     case "/tasks":
-                        terminal.report("tasks", task_status(""))
+                        terminal.report("tasks", jobs.status(""))
                         return 0
                     case "/config" | "/settings":
                         lines = [
