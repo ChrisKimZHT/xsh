@@ -80,3 +80,19 @@ def test_compaction_refuses_pending_tool_calls(tmp_path: Path) -> None:
     compactor = Compactor(_StubModel(), context_window=None, auto=False)
     with pytest.raises(ValueError, match="pending tool calls"):
         compactor.compact(session, tools=[], manual=True)
+
+
+def test_auto_compaction_triggers_when_over_threshold(tmp_path: Path) -> None:
+    session = Session.create(tmp_path / "s.jsonl", tmp_path, "system prompt")
+    pad = "z" * 1200
+    for index in range(12):
+        role = "user" if index % 2 == 0 else "assistant"
+        session.append(Message(role=role, content=f"m{index} {pad}"))
+
+    compactor = Compactor(_StubModel(), context_window=4000, auto=True, threshold=0.8, retain_ratio=0.16, max_tokens=200)
+    result = compactor.compact(session, tools=[], manual=False)
+    assert result is not None
+    assert result.removed_messages > 0
+    assert result.after_tokens < result.before_tokens
+    assert "compacted-summary" in (session.messages[1].content or "")
+
