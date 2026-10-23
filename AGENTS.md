@@ -24,7 +24,7 @@
 3. 实现并自测：`.venv/bin/ruff check src tests` 与 `.venv/bin/python -m pytest -q tests` 必须通过。
 4. `git add -A && git commit`。
 5. 需要生效时，用独立 tmux session 运行 `.supervisor/restart-supervisor.sh` 重启并验证；
-   仅测试/文档变更不需要重启。
+   仅测试/文档变更不需要重启。重启前可先跑 `bash .supervisor/selftest.sh` 自检监督逻辑。
 6. 更新 `.supervisor/PROGRESS.md`，记录结果、验证方式与下一步。
 
 ## 约束
