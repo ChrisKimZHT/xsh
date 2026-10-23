@@ -64,14 +64,20 @@ class OpenAIModel:
         return request
 
     def complete(self, request: dict, on_text: Callable[[str], None] | None = None, on_reasoning: Callable[[str], None] | None = None) -> ModelResponse:
+        # ========================
+        # 阶段 1：初始化流式响应缓存
+        # ========================
         content: list[str] = []                # 正常文本结果
         refusals: list[str] = []               # 拒绝文本结果
         reasoning: list[str] = []              # 推理文本结果
         calls: dict[int, dict[str, str]] = {}  # 按索引累积工具调用信息
         finish_reason = None                   # 结束原因
         usage = {}
-        # 注意：OpenAI 库自带请求重试
-        with self.client.chat.completions.create(**request) as stream:
+
+        # ===============================
+        # 阶段 2：监控流式响应，按块累积结果
+        # ===============================
+        with self.client.chat.completions.create(**request) as stream:  # 注意：OpenAI 库自带请求重试
             for chunk in stream:
                 if chunk.usage:
                     usage = chunk.usage.model_dump()
@@ -115,6 +121,9 @@ class OpenAIModel:
                 if choice.finish_reason:
                     finish_reason = choice.finish_reason
 
+        # ===============================
+        # 阶段 3：校验结束状态，整理工具调用
+        # ===============================
         # 没有结束原因，说明异常终止
         if finish_reason is None:
             raise ValueError("Provider stream ended without a finish reason")
@@ -131,7 +140,9 @@ class OpenAIModel:
         if finish_reason == "tool_calls" and not tool_calls:
             raise ValueError("Provider finished with tool_calls but returned no calls")
 
-        # 组装 ModelResponse 对象
+        # ==========================
+        # 阶段 4：组装统一模型响应对象
+        # ==========================
         return ModelResponse(
             message=Message(
                 role="assistant",

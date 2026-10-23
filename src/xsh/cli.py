@@ -49,6 +49,9 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # ============================================
+    # 阶段 1：解析参数、加载配置、初始化终端和工作目录
+    # ============================================
     args = parser().parse_args(argv)
     load_dotenv(Path.cwd() / ".env", override=False)
 
@@ -80,7 +83,9 @@ def main(argv: list[str] | None = None) -> int:
             max_retries=args.max_retries,
         )
 
-        # 准备会话，恢复或创建
+        # ===========================
+        # 阶段 2：准备会话（恢复/创建）
+        # ===========================
         terminal.context_window = settings.context_window
         if args.resume is not None:
             resume_path = args.resume
@@ -108,15 +113,19 @@ def main(argv: list[str] | None = None) -> int:
             path = args.session or default_path
             session = Session.create(path, workspace, "")  # 此时系统提示词还没准备好，后续会更新
 
+        # ==============================
+        # 阶段 3：注册工具、准备系统提示词
+        # ==============================
         tools = ToolRegistry.default(workspace, settings, record=session.record, allow_shell=args.allow_shell)
         system_prompt = build_prompt(workspace, model=settings.model, tools=tools)
-        # 系统提示词已准备好，更新 session 的系统提示词
-        session.update_system_prompt(system_prompt)
+        session.update_system_prompt(system_prompt)  # 更新 session 的系统提示词
 
         terminal.session(session.path)
         terminal.system_prompt(session.messages[0].content or "")
 
-        # 准备 OpenAI 客户端
+        # ==============================
+        # 阶段 4：初始化模型客户端与 Agent
+        # ==============================
         with OpenAI(
             api_key=settings.api_key.get_secret_value(),
             base_url=settings.base_url,
@@ -145,6 +154,9 @@ def main(argv: list[str] | None = None) -> int:
                 ),
             )
 
+            # ========================
+            # 阶段 6：命令解析和正式运行
+            # ========================
             def run(prompt: str) -> int | None:
                 """统一处理命令和普通输入，返回 None 表示退出交互循环。"""
                 match prompt.strip():
@@ -176,7 +188,10 @@ def main(argv: list[str] | None = None) -> int:
                 else:
                     return 1
 
-            # 命令行指定 prompt 单轮运行
+            # ========================
+            # 阶段 5：进入单轮或多轮运行
+            # ========================
+            # 命令行单轮运行
             if args.prompt is not None:
                 status = run(args.prompt)
                 return 0 if status is None else status

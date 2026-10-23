@@ -56,6 +56,9 @@ class Agent:
         if not prompt.strip():
             raise ValueError("Prompt must not be empty")
 
+        # ======================
+        # 初始化本轮计数与用量统计
+        # ======================
         step = 0
         usage: dict[str, int] = {}
         usage_partial = False
@@ -64,6 +67,9 @@ class Agent:
         cache_prompt_tokens = 0
         cache_steps = 0
 
+        # =================================
+        # 统一收尾函数，汇总结果并记录轮次结束
+        # =================================
         def finish(status: str, text: str = "", error: str = "") -> TurnResult:
             """结束该 Turn：生成结果、停止工具状态刷新并落盘 turn_end"""
             result = TurnResult(
@@ -94,6 +100,9 @@ class Agent:
             )
             return result
 
+        # ===============
+        # 轮次在此正式开始
+        # ===============
         try:
             self.report("turn_start", "")
             self.session.repair_pending()  # 为未收到结果的工具调用补写错误结果，不重新执行
@@ -103,6 +112,9 @@ class Agent:
 
             # ※ Agent Step 循环
             for step in range(1, self.max_steps + 1):
+                # ==========================
+                # 阶段 1：压缩上下文，准备请求
+                # ==========================
                 # 每 Step 之前都尝试压缩，未达到压缩条件，压缩器会自动跳过
                 if self.compactor:
                     self.compactor.compact(self.session, self.tools.schemas())
@@ -111,7 +123,9 @@ class Agent:
                 self.session.record("request", {"step": step, "body": request})
                 self.report("step", f"Turn {turn}, Step {step}")
 
-                # 请求模型得到响应
+                # ===============
+                # 阶段 2：请求模型
+                # ===============
                 self.report("assistant_start", "")
                 context_tokens = None
                 try:
@@ -125,6 +139,10 @@ class Agent:
                     raise
                 finally:
                     self.report("assistant_end", "")
+
+                # ========================
+                # 阶段 3：累计用量，记录响应
+                # ========================
                 # Usage 累计整轮请求，Context 只取最后一次请求的输入量。
                 for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
                     value = response.usage.get(key)
@@ -144,6 +162,7 @@ class Agent:
                     cached_tokens += cached
                     cache_prompt_tokens += prompt_tokens
                     cache_steps += 1
+
                 self.session.record(
                     "response",
                     {
@@ -154,6 +173,9 @@ class Agent:
                 )
                 message = response.message
 
+                # ============================
+                # 阶段 4：保存消息，判断是否结束
+                # ============================
                 # 检查结束原因，若异常结束则丢弃不可靠的工具调用
                 if response.finish_reason not in {"stop", "tool_calls"}:
                     message = message.model_copy(update={"tool_calls": []})
@@ -172,6 +194,9 @@ class Agent:
                 if not message.tool_calls:
                     return finish("completed", message.content or "")
 
+                # ==========================================
+                # 阶段 5：没有结束，执行工具调用，进入下一 Step
+                # ==========================================
                 # 如果有工具调用，则依次执行工具调用
                 for call in message.tool_calls:
                     self.report("tool", call.name)  # 通知终端已收到当前工具调用
@@ -184,6 +209,9 @@ class Agent:
             # 循环跑完了，说明 Step 超限，该 Turn 可能未完成，但必须结束
             return finish("step_limit", error="Maximum model steps reached; completed tool results are saved.")
 
+        # =============
+        # 中断与异常收尾
+        # =============
         except KeyboardInterrupt:
             self.session.repair_pending()
             return finish("cancelled", error="Interrupted by user.")

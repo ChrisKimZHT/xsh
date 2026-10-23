@@ -57,6 +57,9 @@ class Compactor:
 
     def compact(self, session: Session, tools: list[dict], *, manual: bool = False) -> CompactionResult | None:
         """失败或取消时不替换历史；只有完整且确实缩短的摘要才能提交。"""
+        # ==========================
+        # 阶段 1：检查当前是否需要压缩
+        # ==========================
         # 工具调用结果没返回回来，不能压缩
         if session.pending:
             raise ValueError("Cannot compact pending tool calls")
@@ -76,6 +79,9 @@ class Compactor:
             if before < limit:
                 return None
 
+        # =============================
+        # 阶段 2：计算可压缩的消息区间边界
+        # =============================
         # 压缩时要确保所有工具调用结果都已配对，另外，单个长 Turn 内也能压缩已完成的 Step
         boundaries = []
         pending: set[str] = set()
@@ -92,6 +98,9 @@ class Compactor:
         if not candidates:
             return None
 
+        # =================================
+        # 阶段 3：按预算和窗口容量选择压缩边界
+        # =================================
         # 计算保留尾部消息的预算
         tail_budget = int((self.context_window or before) * self.retain_ratio)
 
@@ -124,13 +133,16 @@ class Compactor:
         else:
             raise ValueError("History unit is too large to summarize within the context window")
 
-        # 开始准备压缩请求
+        # ============================
+        # 阶段 4：构建摘要请求，调用模型
+        # ============================
+        # 准备压缩请求
         summary_request = self.model.build_request(summary_messages, tools)  # 把 tools 传给模型主要原因是为了复用前缀缓存
         summary_request["max_tokens"] = self.max_tokens  # 此时的请求 max_tokens 应当是摘要特定的而不是模型的默认值
         if tools:  # 摘要时不要调用工具，把 tools 传给模型主要原因是为了复用前缀缓存
             summary_request["tool_choice"] = "none"
 
-        # 开始压缩
+        # 开始压缩请求
         self.report("compaction", "Compacting context…")
         session.record("compaction_start", {"manual": manual, "end": end, "request": summary_request})
         try:
@@ -143,6 +155,9 @@ class Compactor:
             })
             text = (response.message.content or "").strip()
 
+            # ========================================
+            # 阶段 5：校验摘要完整性与压缩效果，再提交历史
+            # ========================================
             # 模型响应有问题
             if response.finish_reason != "stop" or response.message.tool_calls or not text:
                 raise ValueError("Compaction did not produce a complete text summary")
@@ -167,6 +182,9 @@ class Compactor:
             session.record("compaction_end", {"error": f"{type(error).__name__}: {error}"})
             raise
 
+        # ============================
+        # 阶段 6：记录压缩结果并通知终端
+        # ============================
         # 结束压缩
         session.record("compaction_end", {})
         result = CompactionResult(before, after, end - 1)
