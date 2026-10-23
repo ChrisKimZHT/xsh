@@ -186,6 +186,8 @@ def main(argv: list[str] | None = None) -> int:
             memory_store = MemoryStore(workspace / STATE_DIRECTORY / "memory.md")
             skills_library = SkillLibrary(workspace / STATE_DIRECTORY / "skills")
             tools = ToolRegistry.default(workspace, settings, allow_shell=args.allow_shell, memory_store=memory_store, skills_library=skills_library)
+            # 与真实运行保持一致：补上 task/task_status（这里用占位回调，仅用于 schema/提示词）。
+            tools.add(TaskTools(lambda prompts: "", start=lambda prompts: "", status=lambda job_id: "").definitions())
             if args.list_tools:
                 for name, tool in sorted(tools.tools.items()):
                     print(f"{name}\t{tool.description}")
