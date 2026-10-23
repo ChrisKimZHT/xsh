@@ -18,6 +18,7 @@ from pydantic import ValidationError
 from xsh.agent import Agent
 from xsh.compaction import Compactor
 from xsh.config import STATE_DIRECTORY, Settings
+from xsh.hooks import Hooks
 from xsh.maintenance import compact_session_file
 from xsh.memory import MemoryStore
 from xsh.model import OpenAIModel, discover_context_window
@@ -327,6 +328,7 @@ def main(argv: list[str] | None = None) -> int:
                 tools=tools,
                 max_steps=settings.max_steps,
                 report=terminal.report,
+                hooks=Hooks.load(workspace / STATE_DIRECTORY / "hooks.json", enabled=args.allow_shell),
                 compactor=Compactor(
                     model, context_window=terminal.context_window, auto=settings.auto_compact,
                     threshold=settings.compact_threshold, retain_ratio=settings.compact_retain_ratio,

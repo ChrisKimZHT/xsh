@@ -21,6 +21,7 @@ xsh 是一个模仿 [dsh](https://github.com/deepseek-ai/deepseek-harness) 的�
 - 任务清单：`todo` 工具维护计划清单（可整体替换或 `add`/`complete`/`remove` 增量维护），写入会话并可跨恢复续作
 - 长期记忆：`memory` 工具把跨会话持久笔记写入 `.xsh/memory.md`，并在每次启动时注入系统提示词
 - 技能库：`.xsh/skills/*.md` 的 Markdown 指令包按需加载（`skill` 工具，渐进式披露）
+- 事件钩子：`.xsh/hooks.json` 声明 pre/post tool-use 钩子（需启用 shell；pre 非零退出可拦截调用）
 - 子代理委派：`task` 工具把自包含子任务交给独立上下文的子代理执行并返回报告；可一次提交多个独立子任务并发执行
 - 检索增强：`grep` 支持可选正则、忽略大小写与上下文行（默认仍为字面匹配）
 - 批量编辑：`multiedit` 对同一文件按序应用多处编辑，全部匹配时一次性原子写入

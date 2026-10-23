@@ -5,6 +5,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from xsh.compaction import CompactionResult, Compactor
+from xsh.hooks import Hooks
 from xsh.messages import Message
 from xsh.model import Model
 from xsh.session import Session
@@ -54,6 +55,7 @@ class Agent:
         max_steps: int,
         report: Callable[[str, str], None] | None = None,
         compactor: Compactor | None = None,
+        hooks: Hooks | None = None,
     ):
         if max_steps < 1:
             raise ValueError("Agent limits must be positive")
@@ -63,6 +65,7 @@ class Agent:
         self.max_steps = max_steps
         self.report = report or (lambda kind, text: None)
         self.compactor = compactor
+        self.hooks = hooks
 
     def compact(self) -> CompactionResult | None:
         """轮次间的手动压缩，不新增用户消息或执行工具。"""
@@ -229,15 +232,26 @@ class Agent:
                     self.report("tool", call.name)  # 通知终端已收到当前工具调用
                     self.session.start_tool(call)
                     self.report("tool_start", call.name)  # 开始记录落盘后、实际执行前更新运行状态
-                    started = time.perf_counter()
-                    result = self.tools.execute(call)
+                    blocked = False
+                    if self.hooks is not None:
+                        code, output = self.hooks.run("pre_tool", name=call.name, arguments=call.arguments)
+                        self.session.record("hook", {"phase": "pre_tool", "tool": call.name, "exit": code, "output": output})
+                        if code != 0:
+                            result = Message(role="tool", tool_call_id=call.id, content=f"Error: blocked by pre_tool hook (exit {code}).\n{output}")
+                            blocked = True
+                    if not blocked:
+                        started = time.perf_counter()
+                        result = self.tools.execute(call)
                     self.session.append(result)
                     self.session.record("tool_end", {
                         "id": call.id,
                         "name": call.name,
-                        "seconds": round(time.perf_counter() - started, 3),
+                        "seconds": round(time.perf_counter() - started, 3) if not blocked else 0.0,
                         "chars": len(result.content or ""),
                     })
+                    if self.hooks is not None and not blocked:
+                        code, output = self.hooks.run("post_tool", name=call.name, arguments=call.arguments)
+                        self.session.record("hook", {"phase": "post_tool", "tool": call.name, "exit": code, "output": output})
                     self.report("tool_result", result.content or "")
 
             # 循环跑完了，说明 Step 超限，该 Turn 可能未完成，但必须结束
