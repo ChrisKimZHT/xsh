@@ -59,6 +59,17 @@ def _settings_from_args(args: argparse.Namespace) -> Settings:
     )
 
 
+def resolve_session(value: Path, directory: Path) -> Path:
+    """把会话名或路径解析为实际文件；名字支持在会话目录内按前缀匹配。"""
+    candidate = Path(value)
+    if candidate.is_file():
+        return candidate.resolve()
+    matches = [path for path in directory.glob("*.jsonl") if path.name == candidate.name or path.name.startswith(candidate.name)]
+    if not matches:
+        raise ValueError(f"Session not found: {value}")
+    return max(matches, key=lambda path: path.stat().st_mtime_ns)
+
+
 def fork_session(source: Path, directory: Path) -> Path:
     """把已有会话复制为新文件，返回新路径（原会话保持不变）。"""
     source = Path(source).resolve()
@@ -89,7 +100,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--workspace", type=Path, help="File-tool root; defaults to current directory")
     sessions = result.add_mutually_exclusive_group()
     sessions.add_argument("--session", type=Path, help="Create a new JSONL file at this path")
-    sessions.add_argument("--resume", type=Path, nargs="?", const=True, help="Resume a JSONL session; omit the path for the most recently modified default session")
+    sessions.add_argument("--resume", type=Path, nargs="?", const=True, help="Resume a JSONL session by path or name prefix; omit to resume the most recently modified default session")
     sessions.add_argument("--fork", type=Path, help="Copy an existing session to a new file and open the copy (branch without touching the original)")
     result.add_argument("--allow-shell", action="store_true", help="Enable unsandboxed shell execution")
     result.add_argument("--verbose", action="store_true", help="Show the system prompt, reasoning, and tool results on stdout")
@@ -190,6 +201,8 @@ def main(argv: list[str] | None = None) -> int:
             terminal.report("recovery", f"Forked {args.fork} -> {forked.name}")
         elif args.resume is not None:
             resume_path = args.resume
+            if resume_path is not True:  # 允许按文件名或前缀在会话目录中定位
+                resume_path = resolve_session(resume_path, workspace / _SESSION_DIRECTORY)
             if resume_path is True:  # 如果没有提供路径，则 resume 最近的会话
                 session_directory = workspace / _SESSION_DIRECTORY
                 resume_path = None

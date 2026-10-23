@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from xsh.cli import _handle_sigterm, fork_session, list_sessions, main, parser
+from xsh.cli import _handle_sigterm, fork_session, list_sessions, main, parser, resolve_session
 from xsh.messages import Message
 from xsh.session import Session
 
@@ -75,3 +75,17 @@ def test_list_tools_prints_names(tmp_path: Path, capsys: pytest.CaptureFixture, 
     out = capsys.readouterr().out
     assert "read\t" in out
     assert "todo\t" in out
+
+
+def test_resolve_session_by_name_prefix(tmp_path: Path) -> None:
+    directory = tmp_path / "sessions"
+    directory.mkdir()
+    (directory / "20260101-000000-aaaa.jsonl").write_text("x", encoding="utf-8")
+    newer = directory / "20260102-000000-bbbb.jsonl"
+    newer.write_text("y", encoding="utf-8")
+
+    assert resolve_session(Path("20260102"), directory) == newer.resolve()
+    assert resolve_session(newer, directory) == newer.resolve()
+    assert resolve_session(Path("2026"), directory) == newer.resolve()  # 多个前缀匹配时取最新
+    with pytest.raises(ValueError, match="Session not found"):
+        resolve_session(Path("nope"), directory)
