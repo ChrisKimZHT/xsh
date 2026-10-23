@@ -45,3 +45,17 @@ def test_write_ready_file_is_parseable_and_atomic(tmp_path: Path) -> None:
     assert json.loads(path.read_text(encoding="utf-8"))["boot_id"] == "second"
     leftovers = [p.name for p in path.parent.iterdir() if p.name != path.name]
     assert leftovers == []
+
+
+def test_build_record_merges_extra_progress(tmp_path: Path) -> None:
+    record = build_record(
+        boot_id="b",
+        resumed=False,
+        workspace=tmp_path,
+        session=tmp_path / "s.jsonl",
+        model="m",
+        non_stop=False,
+        extra={"turns": 3, "messages": 7},
+    )
+    assert record["turns"] == 3
+    assert record["messages"] == 7

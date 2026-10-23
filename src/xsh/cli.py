@@ -196,6 +196,7 @@ def main(argv: list[str] | None = None) -> int:
                         session=session.path,
                         model=settings.model,
                         non_stop=non_stop_mode,
+                        extra={"turns": session.turn_count, "messages": len(session.messages)},
                     )
                     write_ready_file(Path(args.ready_file).resolve(), record)
                 except OSError as error:
