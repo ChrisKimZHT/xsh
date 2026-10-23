@@ -4,6 +4,7 @@ import argparse
 import shutil
 import signal
 import sys
+import threading
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -314,7 +315,41 @@ def main(argv: list[str] | None = None) -> int:
                     return reports[0]
                 return "\n\n".join(f"[{index + 1}] {report}" for index, report in enumerate(reports))
 
-            tools.add(TaskTools(run_subtask).definitions())
+            # 后台子任务：立即返回句柄，由 task_status 轮询。
+            background_jobs: dict[str, dict] = {}
+            jobs_lock = threading.Lock()
+
+            def start_background(prompts: Sequence[str]) -> str:
+                job_id = uuid4().hex[:8]
+                with jobs_lock:
+                    background_jobs[job_id] = {"status": "running", "result": ""}
+
+                def worker() -> None:
+                    try:
+                        text = run_subtask(prompts)
+                    except Exception as error:  # noqa: BLE001
+                        text = f"error: {type(error).__name__}: {error}"
+                    with jobs_lock:
+                        background_jobs[job_id].update(status="done", result=text)
+
+                threading.Thread(target=worker, daemon=True).start()
+                return f'Background task {job_id} started. Poll with task_status(id="{job_id}").'
+
+            def task_status(job_id: str) -> str:
+                with jobs_lock:
+                    snapshot = {key: dict(value) for key, value in background_jobs.items()}
+                if not job_id:
+                    if not snapshot:
+                        return "No background tasks."
+                    return "Background tasks:\n" + "\n".join(f"- {key}: {value['status']}" for key, value in snapshot.items())
+                job = snapshot.get(job_id)
+                if job is None:
+                    return f"Unknown background task: {job_id}"
+                if job["status"] == "running":
+                    return f"Background task {job_id} is still running."
+                return f"Background task {job_id} finished:\n{job['result']}"
+
+            tools.add(TaskTools(run_subtask, start=start_background, status=task_status).definitions())
 
             # 系统提示词在工具集完整后构建，确保所有工具指导文案都进入提示词。
             system_prompt = build_prompt(workspace, model=settings.model, tools=tools, non_stop_mode=non_stop_mode, memory=memory_store.render(), skills=skills_library.render_index())
