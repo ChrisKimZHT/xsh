@@ -22,8 +22,8 @@ from xsh.agent import Agent
 from xsh.background import BackgroundJobs
 from xsh.compaction import Compactor
 from xsh.config import STATE_DIRECTORY, Settings
+from xsh.doctor import FAIL, run_checks
 from xsh.doctor import render as render_doctor
-from xsh.doctor import run_checks
 from xsh.hooks import Hooks
 from xsh.maintenance import compact_session_file
 from xsh.mcp import load_servers, start_clients
@@ -308,7 +308,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"xsh: {error}", file=sys.stderr)
             return 2
 
-    # 自检：只读检查工作区/配置/可选依赖，便于排障。
+    # 自检：只读检查工作区/配置/可选依赖，便于排障。存在 fail 时退出码为 1。
     if args.doctor:
         try:
             workspace = (args.workspace or Path.cwd()).resolve(strict=True)
@@ -316,8 +316,9 @@ def main(argv: list[str] | None = None) -> int:
         except (ValidationError, OSError, ValueError) as error:
             print(f"xsh: {error}", file=sys.stderr)
             return 2
-        print(render_doctor(run_checks(workspace, settings, _allow_shell(args))))
-        return 0
+        checks = run_checks(workspace, settings, _allow_shell(args))
+        print(render_doctor(checks))
+        return 1 if any(status == FAIL for _, status, _ in checks) else 0
 
     # 无终端模式：--print 直接执行 prompt 并打印结果，便于脚本化调用。
     if args.print_mode:

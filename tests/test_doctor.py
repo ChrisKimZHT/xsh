@@ -35,3 +35,17 @@ def test_render_summarizes_counts(tmp_path: Path) -> None:
     text = render(run_checks(tmp_path, _settings()))
     assert "[ok] workspace" in text
     assert "failure(s)" in text
+
+
+def test_cli_doctor_exit_code_reflects_failures(tmp_path: Path, capsys, monkeypatch) -> None:
+    from xsh.cli import main
+
+    monkeypatch.setenv("XSH_BASE_URL", "https://example/v1")
+    monkeypatch.setenv("XSH_MODEL", "m")
+    monkeypatch.setenv("XSH_API_KEY", "k")
+    assert main(["--doctor", "--workspace", str(tmp_path)]) == 0
+    state = tmp_path / ".xsh"
+    state.mkdir()
+    (state / "mcp.json").write_text("nope", encoding="utf-8")
+    assert main(["--doctor", "--workspace", str(tmp_path)]) == 1
+    assert "mcp.json" in capsys.readouterr().out
