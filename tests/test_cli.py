@@ -116,6 +116,20 @@ def test_print_mode_requires_a_prompt(capsys: pytest.CaptureFixture) -> None:
     assert "requires a prompt" in capsys.readouterr().err
 
 
+def test_print_reads_prompt_from_stdin(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
+    import io
+
+    monkeypatch.setattr("sys.stdin", io.StringIO("piped prompt\n"))
+
+    def fake(args: object) -> int:
+        print("PROMPT=" + args.prompt)  # type: ignore[attr-defined]
+        return 0
+
+    monkeypatch.setattr("xsh.cli.run_print_mode", fake)
+    assert main(["--print"]) == 0
+    assert "PROMPT=piped prompt" in capsys.readouterr().out
+
+
 def _session_with_noise(tmp_path: Path) -> Path:
     directory = tmp_path / ".xsh" / "sessions"
     path = directory / "s.jsonl"

@@ -284,9 +284,17 @@ def main(argv: list[str] | None = None) -> int:
 
     # 无终端模式：--print 直接执行 prompt 并打印结果，便于脚本化调用。
     if args.print_mode:
-        if args.prompt is None:
-            print("xsh: --print requires a prompt", file=sys.stderr)
+        prompt = args.prompt
+        if prompt is None:  # 支持从管道读取 prompt：echo "..." | xsh --print
+            try:
+                if not sys.stdin.isatty():
+                    prompt = sys.stdin.read().strip()
+            except OSError:
+                prompt = None
+        if not prompt:
+            print("xsh: --print requires a prompt (argument or stdin)", file=sys.stderr)
             return 2
+        args.prompt = prompt
         return run_print_mode(args)
 
     # 仅支持终端输出；重定向或管道无法渲染动态界面，直接报错退出。
