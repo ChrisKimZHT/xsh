@@ -253,6 +253,9 @@ class Terminal:
             self._stop_tool()
             self._tool_started_at = None
 
+        else:  # 未知事件类型：以暗色原样输出，避免信息丢失
+            self.console.print(Text(text, style="dim"))
+
     def session(self, path: object) -> None:
         """打印会话路径"""
         self.console.print(Text(f"Session: {path}", style="dim"))

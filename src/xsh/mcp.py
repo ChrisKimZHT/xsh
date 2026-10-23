@@ -9,6 +9,7 @@
 """
 
 import json
+import os
 import select
 import subprocess
 from pathlib import Path
@@ -47,10 +48,11 @@ class McpClient:
         if self.process is None or self.process.stdout is None:
             raise McpError("server is not running")
         while True:
-            # 不让挂起的服务器阻塞 xsh：等待超时即放弃该服务器。
-            ready, _, _ = select.select([self.process.stdout], [], [], self.timeout)
-            if not ready:
-                raise McpError(f"timed out waiting for a response after {self.timeout}s")
+            # 不让挂起的服务器阻塞 xsh：等待超时即放弃该服务器（select 仅限 POSIX）。
+            if os.name != "nt":
+                ready, _, _ = select.select([self.process.stdout], [], [], self.timeout)
+                if not ready:
+                    raise McpError(f"timed out waiting for a response after {self.timeout}s")
             line = self.process.stdout.readline()
             if not line:
                 raise McpError("server closed the connection")

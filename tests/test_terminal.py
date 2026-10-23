@@ -104,3 +104,9 @@ def test_stats_renders_overview(terminal: tuple[Terminal, io.StringIO], tmp_path
     term.stats(session)
     out = buffer.getvalue()
     assert "Session stats" in out and "Tool calls: 1" in out
+
+
+def test_report_unknown_kind_is_printed(terminal: tuple[Terminal, io.StringIO]) -> None:
+    term, buffer = terminal
+    term.report("custom-kind", "hello custom")
+    assert "hello custom" in buffer.getvalue()
