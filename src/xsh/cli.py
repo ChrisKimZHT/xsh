@@ -164,7 +164,12 @@ def run_print_mode(args: argparse.Namespace) -> int:
     ) as client:
         model = OpenAIModel(client, settings.model, settings.max_tokens)
         hooks = Hooks.load(workspace / STATE_DIRECTORY / "hooks.json", enabled=args.allow_shell)
-        agent = Agent(model=model, session=session, tools=tools, max_steps=settings.max_steps, hooks=hooks)
+        compactor = Compactor(
+            model, context_window=settings.context_window, auto=settings.auto_compact,
+            threshold=settings.compact_threshold, retain_ratio=settings.compact_retain_ratio,
+            max_tokens=settings.compact_max_tokens, report=lambda kind, text: None,
+        )
+        agent = Agent(model=model, session=session, tools=tools, max_steps=settings.max_steps, hooks=hooks, compactor=compactor)
         if args.non_stop_mode:
             task = NonStopTask.parse(args.prompt)
             session.non_stop_task = {"prompt": task.prompt, "continuation": task.continuation, "initial_turn": session.turn_count}
