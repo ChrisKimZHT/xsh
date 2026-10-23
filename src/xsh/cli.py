@@ -18,6 +18,7 @@ from pydantic import ValidationError
 from xsh.agent import Agent
 from xsh.compaction import Compactor
 from xsh.config import STATE_DIRECTORY, Settings
+from xsh.maintenance import compact_session_file
 from xsh.model import OpenAIModel, discover_context_window
 from xsh.non_stop import NonStopTask, run_non_stop
 from xsh.prompt import build_prompt
@@ -58,6 +59,15 @@ def _settings_from_args(args: argparse.Namespace) -> Settings:
         request_timeout=args.request_timeout,
         max_retries=args.max_retries,
     )
+
+
+def maybe_compact_session(path: Path, threshold_mb: float) -> dict | None:
+    """当会话文件超过阈值时离线压缩（opt-in；阈值 <= 0 表示关闭）。"""
+    if threshold_mb <= 0 or not Path(path).is_file():
+        return None
+    if Path(path).stat().st_size <= int(threshold_mb * 1024 * 1024):
+        return None
+    return compact_session_file(Path(path), backup=True)
 
 
 def resolve_session(value: Path, directory: Path) -> Path:
@@ -218,6 +228,12 @@ def main(argv: list[str] | None = None) -> int:
                         latest_modified_time = modified_time
                 if resume_path is None:
                     raise ValueError(f"No sessions found in {session_directory}")
+            stats = maybe_compact_session(resume_path, settings.session_compact_mb)
+            if stats and stats.get("changed"):
+                terminal.report(
+                    "compaction",
+                    f"Compacted session {resume_path.name}: {stats['before_bytes']} -> {stats['after_bytes']} bytes",
+                )
             session = Session.load(resume_path)
             if args.workspace and workspace != session.workspace:
                 raise ValueError("Resumed session belongs to a different workspace")

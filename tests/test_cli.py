@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from xsh.cli import _handle_sigterm, fork_session, list_sessions, main, parser, resolve_session
+from xsh.cli import _handle_sigterm, fork_session, list_sessions, main, maybe_compact_session, parser, resolve_session
 from xsh.messages import Message
 from xsh.session import Session
 
@@ -57,6 +57,21 @@ def test_fork_session_copies_and_isolates(tmp_path: Path) -> None:
 def test_fork_session_missing_raises(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="Session not found"):
         fork_session(tmp_path / "nope.jsonl", tmp_path / "sessions")
+
+
+def test_maybe_compact_session_is_opt_in(tmp_path: Path) -> None:
+    session = Session.create(tmp_path / "s.jsonl", tmp_path, "system prompt")
+    session.append(Message(role="user", content="hi"))
+    session.record("request", {"body": "x" * 1000})
+    session.record("response", {"body": "y" * 1000})
+
+    assert maybe_compact_session(session.path, 0) is None  # 默认关闭
+    threshold = (session.path.stat().st_size - 1) / (1024 * 1024)
+    stats = maybe_compact_session(session.path, threshold)
+    assert stats is not None and stats["changed"] is True
+    assert stats["after_bytes"] < stats["before_bytes"]
+    assert (tmp_path / "s.jsonl.bak").is_file()
+    assert Session.load(session.path).messages[-1].content == "hi"
 
 
 def test_dump_prompt_prints_system_prompt(tmp_path: Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch) -> None:
