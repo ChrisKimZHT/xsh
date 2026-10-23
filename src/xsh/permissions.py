@@ -45,6 +45,9 @@ class Permissions:
     def command_allowed(self, command: str) -> bool:
         return not any(fnmatch.fnmatch(command, pattern) for pattern in self.deny_commands)
 
+    def summary(self) -> str:
+        return f"{len(self.deny_paths)} path pattern(s), {len(self.deny_commands)} command pattern(s)"
+
     def require_path(self, path: Path) -> None:
         if not self.path_allowed(path):
             raise ValueError(f"Access to {path} is denied by the permission policy")

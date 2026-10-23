@@ -541,6 +541,7 @@ def main(argv: list[str] | None = None) -> int:
                             f"max_steps: {settings.max_steps}  max_turns: {settings.max_turns}  max_run_tokens: {settings.max_run_tokens}",
                             f"memory: {len(memory_store.entries)} entrie(s)  skills: {len(skills_library.names())}",
                             f"mcp servers: {len(mcp_clients)}  hooks: {'on' if agent.hooks else 'off'}",
+                            f"permissions: {permissions.summary()}",
                         ]
                         terminal.report("config", "\n".join(lines))
                         return 0

@@ -17,6 +17,7 @@ def test_load_defaults_to_allow_all(tmp_path: Path) -> None:
     permissions = Permissions.load(tmp_path / "missing.json")
     assert permissions.path_allowed(tmp_path / "anything.txt")
     assert permissions.command_allowed("rm -rf /")
+    assert permissions.summary() == "0 path pattern(s), 0 command pattern(s)"
 
 
 def test_load_parses_patterns(tmp_path: Path) -> None:
