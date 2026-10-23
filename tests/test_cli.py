@@ -109,3 +109,8 @@ def test_resolve_session_by_name_prefix(tmp_path: Path) -> None:
     assert resolve_session(Path("2026"), directory) == newer.resolve()  # 多个前缀匹配时取最新
     with pytest.raises(ValueError, match="Session not found"):
         resolve_session(Path("nope"), directory)
+
+
+def test_print_mode_requires_a_prompt(capsys: pytest.CaptureFixture) -> None:
+    assert main(["--print"]) == 2
+    assert "requires a prompt" in capsys.readouterr().err

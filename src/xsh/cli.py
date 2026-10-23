@@ -113,6 +113,70 @@ def list_sessions(directory: Path) -> list[tuple[float, int, str]]:
     return entries
 
 
+def run_print_mode(args: argparse.Namespace) -> int:
+    """无终端运行：执行给定 prompt（单轮或非停机）并把结果文本打印到 stdout。"""
+    try:
+        workspace = (args.workspace or Path.cwd()).resolve(strict=True)
+        settings = _settings_from_args(args)
+    except (ValidationError, OSError, ValueError) as error:
+        print(f"xsh: {error}", file=sys.stderr)
+        return 2
+
+    memory_store = MemoryStore(workspace / STATE_DIRECTORY / "memory.md")
+    skills_library = SkillLibrary(workspace / STATE_DIRECTORY / "skills")
+    session_directory = workspace / _SESSION_DIRECTORY
+
+    if args.fork is not None:
+        session = Session.load(fork_session(args.fork, session_directory))
+    elif args.resume is not None:
+        if args.resume is True:
+            entries = list_sessions(session_directory)
+            if not entries:
+                print(f"xsh: no sessions found in {session_directory}", file=sys.stderr)
+                return 2
+            resume_path = session_directory / entries[0][2]
+        else:
+            resume_path = resolve_session(args.resume, session_directory)
+        session = Session.load(resume_path)
+    else:
+        filename = datetime.now().strftime("%Y%m%d-%H%M%S-") + uuid4().hex[:8] + ".jsonl"
+        session = Session.create(args.session or session_directory / filename, workspace, "")
+    workspace = session.workspace
+
+    tools = ToolRegistry.default(
+        workspace, settings, record=session.record, allow_shell=args.allow_shell,
+        current_todos=lambda: session.todos, memory_store=memory_store, skills_library=skills_library,
+    )
+    # --print 模式不启动子代理（保持无副作用）；仍注册工具以对齐提示词。
+    tools.add(TaskTools(lambda prompts: "(subagents are unavailable in --print mode)").definitions())
+    session.update_system_prompt(build_prompt(
+        workspace, model=settings.model, tools=tools, non_stop_mode=args.non_stop_mode,
+        memory=memory_store.render(), skills=skills_library.render_index(),
+    ))
+
+    with OpenAI(
+        api_key=settings.api_key.get_secret_value(),
+        base_url=settings.base_url,
+        timeout=settings.request_timeout,
+        max_retries=settings.max_retries,
+    ) as client:
+        model = OpenAIModel(client, settings.model, settings.max_tokens)
+        hooks = Hooks.load(workspace / STATE_DIRECTORY / "hooks.json", enabled=args.allow_shell)
+        agent = Agent(model=model, session=session, tools=tools, max_steps=settings.max_steps, hooks=hooks)
+        if args.non_stop_mode:
+            task = NonStopTask.parse(args.prompt)
+            session.non_stop_task = {"prompt": task.prompt, "continuation": task.continuation, "initial_turn": session.turn_count}
+            session.record("non_stop_task", session.non_stop_task)
+            return run_non_stop(
+                agent, task, lambda result: print(result.text or result.error or "", flush=True),
+                report=lambda kind, text: None, max_turns=settings.max_turns, budget_tokens=settings.max_run_tokens,
+                usage=lambda: usage_totals(session.path)["total_tokens"],
+            )
+        result = agent.run(args.prompt)
+        print(result.text or result.error or "", flush=True)
+        return 0 if result.status == "completed" else 1
+
+
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(prog="xsh", description="xsh - a deliberately small, single-agent harness")
     result.add_argument("prompt", nargs="?", help="Run one task; omit for interactive mode")
@@ -129,6 +193,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--list-sessions", action="store_true", help="List saved sessions for the workspace and exit")
     result.add_argument("--dump-prompt", action="store_true", help="Print the assembled system prompt and exit")
     result.add_argument("--list-tools", action="store_true", help="List the available tools and exit")
+    result.add_argument("--print", action="store_true", dest="print_mode", help="Run a prompt without the interactive UI and print the result")
 
     # 覆盖 .env 配置的命令行参数
     result.add_argument("--base-url", help="OpenAI-compatible API base URL")
@@ -197,6 +262,13 @@ def main(argv: list[str] | None = None) -> int:
         except (ValidationError, OSError, ValueError) as error:
             print(f"xsh: {error}", file=sys.stderr)
             return 2
+
+    # 无终端模式：--print 直接执行 prompt 并打印结果，便于脚本化调用。
+    if args.print_mode:
+        if args.prompt is None:
+            print("xsh: --print requires a prompt", file=sys.stderr)
+            return 2
+        return run_print_mode(args)
 
     # 仅支持终端输出；重定向或管道无法渲染动态界面，直接报错退出。
     try:
