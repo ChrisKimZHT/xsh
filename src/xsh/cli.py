@@ -144,7 +144,7 @@ def main(argv: list[str] | None = None) -> int:
         # ==============================
         # 阶段 3：注册工具、准备系统提示词
         # ==============================
-        tools = ToolRegistry.default(workspace, settings, record=session.record, allow_shell=args.allow_shell)
+        tools = ToolRegistry.default(workspace, settings, record=session.record, report=terminal.report, allow_shell=args.allow_shell)
         non_stop_mode = args.non_stop_mode or session.non_stop_task is not None
         system_prompt = build_prompt(workspace, model=settings.model, tools=tools, non_stop_mode=non_stop_mode)
         session.update_system_prompt(system_prompt)  # 更新 session 的系统提示词

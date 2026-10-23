@@ -141,6 +141,10 @@ class Terminal:
         elif kind == "recovery":  # 恢复会话时补齐了未完成的工具调用
             self.console.print(Text(text, style="yellow"))
 
+        elif kind == "todos":  # 任务清单更新
+            self._stop_tool()
+            self.console.print(Panel(Text(text), title="Todos", title_align="left", border_style="magenta", expand=False))
+
         elif kind == "assistant_start":  # 模型开始输出
             self._text = ""
             self._reasoning = False

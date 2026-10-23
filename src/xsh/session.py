@@ -62,6 +62,7 @@ class Session:
         self.pending: dict[str, ToolCall] = {}  # 尚未收到结果的工具调用
         self.started: set[str] = set()          # 已记录开始执行、尚未收到结果的调用 ID
         self.non_stop_task: dict[str, Any] | None = None
+        self.todos: list[dict[str, Any]] = []  # 任务清单（todo 工具维护），随会话持久化
         self.recovered_tool_calls = 0  # 恢复会话时补齐的未完成工具调用数量
 
     @classmethod
@@ -99,6 +100,10 @@ class Session:
         for event in events[1:]:
             if event["type"] == "non_stop_task":
                 session.non_stop_task = event["data"]
+            elif event["type"] == "todos":  # 恢复任务清单，便于跨重启续作
+                todos = event["data"].get("todos")
+                if isinstance(todos, list):
+                    session.todos = todos
             elif event["type"] == "message":
                 session._accept(Message.model_validate(event["data"]))
             elif event["type"] == "system_prompt":  # 如果在 1: 后找到系统提示词事件，则是更新了系统提示词，替换旧的系统消息
