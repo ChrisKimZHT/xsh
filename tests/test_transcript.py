@@ -35,3 +35,11 @@ def test_export_writes_file_and_confines_path(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="inside the workspace"):
         export_transcript(session, tmp_path, "../escape.md")
+
+
+def test_render_transcript_appends_extra_sections(tmp_path: Path) -> None:
+    session = Session.create(tmp_path / "s.jsonl", tmp_path, "system prompt")
+    session.append(Message(role="user", content="body"))
+    text = render_transcript(session.messages, [("Todos", "[x] done"), ("Memory", "note")])
+    assert "## Todos" in text and "[x] done" in text
+    assert "## Memory" in text and "note" in text

@@ -578,8 +578,13 @@ def main(argv: list[str] | None = None) -> int:
                         return 0
                     case _ if prompt.strip().startswith("/export"):
                         target = prompt.strip()[len("/export"):].strip() or None
+                        extra = []
+                        if session.todos:
+                            extra.append(("Todos", format_todos(session.todos)))
+                        if memory_store.render():
+                            extra.append(("Memory", memory_store.render()))
                         try:
-                            path = export_transcript(session, workspace, target)
+                            path = export_transcript(session, workspace, target, extra_sections=extra)
                         except (OSError, ValueError) as error:
                             terminal.error(f"Export failed: {error}")
                             return 1

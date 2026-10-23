@@ -7,8 +7,8 @@ from xsh.messages import Message
 from xsh.session import Session
 
 
-def render_transcript(messages: list[Message]) -> str:
-    """把消息序列渲染为 Markdown 文本。"""
+def render_transcript(messages: list[Message], extra_sections: list[tuple[str, str]] | None = None) -> str:
+    """把消息序列渲染为 Markdown 文本；extra_sections 追加为末尾小节。"""
     lines = ["# xsh transcript", ""]
     for index, message in enumerate(messages, start=1):
         lines.append(f"## {index}. {message.role}")
@@ -23,10 +23,15 @@ def render_transcript(messages: list[Message]) -> str:
             lines.append(f"- `{call.name}` `{call.arguments}`")
         if message.tool_calls:
             lines.append("")
+    for title, body in extra_sections or []:
+        lines.append(f"## {title}")
+        lines.append("")
+        lines.append(body.rstrip())
+        lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
 
-def export_transcript(session: Session, workspace: Path, target: str | None = None) -> Path:
+def export_transcript(session: Session, workspace: Path, target: str | None = None, extra_sections: list[tuple[str, str]] | None = None) -> Path:
     """把会话导出为 Markdown 文件；target 省略时按时间戳命名。"""
     workspace = Path(workspace).resolve()
     if target:
@@ -36,5 +41,5 @@ def export_transcript(session: Session, workspace: Path, target: str | None = No
     else:
         path = workspace / f"xsh-transcript-{datetime.now().strftime('%Y%m%d-%H%M%S')}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render_transcript(session.messages), encoding="utf-8")
+    path.write_text(render_transcript(session.messages, extra_sections), encoding="utf-8")
     return path
