@@ -43,7 +43,8 @@ class SkillLibrary:
     def read(self, name: str) -> str:
         path = (self.directory / f"{name}.md").resolve()
         if not path.is_file() or not path.is_relative_to(self.directory.resolve()):
-            raise ValueError(f"Unknown skill: {name}")
+            known = ", ".join(self.names()) or "(none)"
+            raise ValueError(f"Unknown skill: {name}. Available: {known}")
         data = path.read_text(encoding="utf-8", errors="replace")
         if len(data) > _MAX_SKILL_BYTES:
             data = data[:_MAX_SKILL_BYTES] + "\n[truncated]"

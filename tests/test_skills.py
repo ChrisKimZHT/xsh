@@ -39,6 +39,8 @@ def test_tool_lists_and_loads(tmp_path: Path) -> None:
     assert "Run the tests first." in loaded
     with pytest.raises(ValueError, match="Unknown skill"):
         tools.run(SkillArgs(name="../secret"))
+    with pytest.raises(ValueError, match="Available: release"):
+        tools.run(SkillArgs(name="missing"))
 
 
 def test_prompt_lists_skills(tmp_path: Path) -> None:
