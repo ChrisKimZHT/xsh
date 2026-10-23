@@ -30,6 +30,7 @@ _INTRO = """\
 - `/find <text>` — Search the conversation for text
 - `/todos` — Show the persisted task list
 - `/memory` — Show the workspace long-term memory
+- `/reload` — Re-read memory and skills from disk
 - `/skills` — List available workspace skills
 - `/tasks` — List background subtasks
 - `/config` — Show the effective runtime configuration

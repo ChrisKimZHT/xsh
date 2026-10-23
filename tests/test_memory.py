@@ -29,6 +29,15 @@ def test_store_roundtrip_and_remove(tmp_path: Path) -> None:
     assert MemoryStore(tmp_path / "memory.md").entries == ["second note"]
 
 
+def test_reload_picks_up_external_edits(tmp_path: Path) -> None:
+    path = tmp_path / "memory.md"
+    store = MemoryStore(path)
+    assert store.entries == []
+    path.write_text("# xsh memory\n\n- externally added\n", encoding="utf-8")
+    store.reload()
+    assert store.entries == ["externally added"]
+
+
 def test_tool_add_replace_remove(tmp_path: Path) -> None:
     store = MemoryStore(tmp_path / "m.md")
     tools = MemoryTools(store)

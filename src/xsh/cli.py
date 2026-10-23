@@ -503,6 +503,14 @@ def main(argv: list[str] | None = None) -> int:
                     case "/memory" | "/mem":
                         terminal.report("memory", memory_store.render() or "(no memory entries)")
                         return 0
+                    case "/reload":
+                        memory_store.reload()
+                        session.update_system_prompt(build_prompt(
+                            workspace, model=settings.model, tools=tools, non_stop_mode=non_stop_mode,
+                            memory=memory_store.render(), skills=skills_library.render_index(),
+                        ))
+                        terminal.report("config", f"Reloaded memory and skills (memory={len(memory_store.entries)}, skills={len(skills_library.names())}).")
+                        return 0
                     case "/skills":
                         terminal.report("skills", skills_library.render_index() or "(no skills)")
                         return 0

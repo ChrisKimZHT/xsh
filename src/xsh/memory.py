@@ -39,6 +39,10 @@ class MemoryStore:
                     entries.append(value)
         return entries[-_MAX_ENTRIES:]
 
+    def reload(self) -> None:
+        """从磁盘重新读取记忆（用于外部编辑后用 /reload 生效）。"""
+        self.entries = self._load()
+
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if self.entries:
