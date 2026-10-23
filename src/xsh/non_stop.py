@@ -65,6 +65,8 @@ def run_non_stop(
     resumed: bool = False,
     report: Callable[[str, str], None] | None = None,
     max_turns: int | None = None,
+    budget_tokens: int | None = None,
+    usage: Callable[[], int] | None = None,
 ) -> int:
     """Continue model-ended Turns until interruption or repeated failure.
 
@@ -114,5 +116,10 @@ def run_non_stop(
             failures = 0
             backoff = _INITIAL_BACKOFF_SECONDS
             prompt = task.next_prompt
+            if budget_tokens is not None and usage is not None:
+                spent = usage()
+                if spent >= budget_tokens:
+                    notify("budget", f"Token budget reached ({spent} >= {budget_tokens}); stopping non-stop mode.")
+                    return 0
     except KeyboardInterrupt:
         return 130

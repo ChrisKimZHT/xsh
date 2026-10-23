@@ -81,6 +81,18 @@ def test_max_turns_stops_cleanly(no_sleep: list[float]) -> None:
     assert len(agent.prompts) == 2
 
 
+def test_token_budget_stops_cleanly(no_sleep: list[float]) -> None:
+    agent = _FakeAgent([TurnResult("completed", steps=1) for _ in range(5)])
+    reports: list[tuple[str, str]] = []
+    code = run_non_stop(
+        agent, NonStopTask("task"), lambda result: None,
+        budget_tokens=50, usage=lambda: 100, report=lambda kind, text: reports.append((kind, text)),
+    )
+    assert code == 0
+    assert len(agent.prompts) == 1
+    assert reports and reports[0][0] == "budget"
+
+
 def test_is_transient_error_classification() -> None:
     import httpx
     from openai import APIStatusError, APITimeoutError

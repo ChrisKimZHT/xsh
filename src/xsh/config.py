@@ -14,6 +14,7 @@ class Settings(BaseModel):
     api_key: SecretStr
     max_steps: int = Field(default=100000, ge=1)
     max_turns: int | None = Field(default=None, ge=1, description="Optional cap on non-stop continuation turns.")
+    max_run_tokens: int | None = Field(default=None, ge=1, description="Optional token budget for a non-stop run.")
     session_compact_mb: float = Field(default=0, ge=0, description="Offline-compact a session file on resume when it exceeds this size (0 disables).")
     max_tokens: int = Field(default=65536, ge=1)
     context_window: int | None = Field(default=None, ge=1)

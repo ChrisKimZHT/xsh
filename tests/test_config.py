@@ -76,3 +76,12 @@ def test_max_turns_default_and_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("XSH_API_KEY", "env-key")
     monkeypatch.setenv("XSH_MAX_TURNS", "3")
     assert Settings.from_env().max_turns == 3
+
+
+def test_max_run_tokens_default_and_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert Settings(**_base()).max_run_tokens is None
+    monkeypatch.setenv("XSH_BASE_URL", "https://env.example/v1")
+    monkeypatch.setenv("XSH_MODEL", "env-model")
+    monkeypatch.setenv("XSH_API_KEY", "env-key")
+    monkeypatch.setenv("XSH_MAX_RUN_TOKENS", "1000000")
+    assert Settings.from_env().max_run_tokens == 1_000_000
