@@ -54,6 +54,7 @@ class SearchArgs(ToolArgs):
 
 class FetchArgs(ToolArgs):
     url: str = Field(min_length=1, max_length=2048, description="Public HTTP(S) URL to fetch.")
+    max_chars: int = Field(default=_MAX_FETCH_OUTPUT_CHARS, ge=1000, le=_MAX_FETCH_OUTPUT_CHARS, description="Maximum characters of extracted text to return.")
 
 
 def _search_sources(payload: dict) -> list[dict[str, str]]:
@@ -341,8 +342,8 @@ class WebTools:
         url, status, kind, content, truncated = _fetch_page(args.url)
         text = _html_to_markdown(content) if kind == "html" else content
         output = f"Fetched {url} (HTTP {status})\n\n{_EXTERNAL_NOTICE}\n\n{text}"
-        if truncated or len(output) > _MAX_FETCH_OUTPUT_CHARS:
-            return output[:_MAX_FETCH_OUTPUT_CHARS - len(_TRUNCATION_MARKER)] + _TRUNCATION_MARKER
+        if truncated or len(output) > args.max_chars:
+            return output[:args.max_chars - len(_TRUNCATION_MARKER)] + _TRUNCATION_MARKER
         return output
 
     def definitions(self) -> list[Tool]:

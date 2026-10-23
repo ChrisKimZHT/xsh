@@ -116,3 +116,10 @@ def test_fetch_formats_and_truncates(monkeypatch: pytest.MonkeyPatch) -> None:
     truncated = WebTools(_settings()).fetch(FetchArgs(url="https://example.com"))
     assert len(truncated) <= web._MAX_FETCH_OUTPUT_CHARS
     assert truncated.endswith(web._TRUNCATION_MARKER)
+
+
+def test_fetch_respects_max_chars(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(web, "_fetch_page", lambda value: (value, 200, "text", "y" * 50_000, False))
+    out = WebTools(_settings()).fetch(FetchArgs(url="https://example.com", max_chars=1000))
+    assert len(out) <= 1000
+    assert out.endswith(web._TRUNCATION_MARKER)
