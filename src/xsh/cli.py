@@ -432,6 +432,19 @@ def main(argv: list[str] | None = None) -> int:
                     case "/skills":
                         terminal.report("skills", skills_library.render_index() or "(no skills)")
                         return 0
+                    case "/config" | "/settings":
+                        lines = [
+                            f"model: {settings.model}",
+                            f"base_url: {settings.base_url}",
+                            f"workspace: {workspace}",
+                            f"context_window: {terminal.context_window}",
+                            f"auto_compact: {settings.auto_compact}",
+                            f"max_steps: {settings.max_steps}  max_turns: {settings.max_turns}  max_run_tokens: {settings.max_run_tokens}",
+                            f"memory: {len(memory_store.entries)} entrie(s)  skills: {len(skills_library.names())}",
+                            f"mcp servers: {len(mcp_clients)}  hooks: {'on' if agent.hooks else 'off'}",
+                        ]
+                        terminal.report("config", "\n".join(lines))
+                        return 0
                     case "/usage" | "/u":
                         terminal.usage(session)
                         return 0
