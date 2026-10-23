@@ -149,3 +149,30 @@ xsh "1 + 1 = ?"  # 单轮任务模式
 | `XSH_AUTO_COMPACT` / `XSH_COMPACT_THRESHOLD` / `XSH_COMPACT_RETAIN_RATIO` | 自动压缩开关与阈值 |
 | `XSH_REQUEST_TIMEOUT` / `XSH_MAX_RETRIES` | 请求超时与重试次数          |
 
+### 配置文件示例
+
+`.xsh/permissions.json`（可选，拒绝敏感路径读写、危险命令与特定 URL）：
+
+```json
+{
+  "deny_paths": ["**/.env", "secrets/**"],
+  "deny_commands": ["rm -rf *", "git push*"],
+  "deny_urls": ["https://tracker.example/*"]
+}
+```
+
+`.xsh/hooks.json`（可选，需启用 shell；`pre_tool` 非零退出会拦截该次工具调用）：
+
+```json
+{"pre_tool": "echo checking", "post_tool": "./scripts/format.sh"}
+```
+
+`.xsh/mcp.json`（可选，接入外部 MCP stdio 服务器）：
+
+```json
+{"servers": {"demo": {"command": "npx", "args": ["-y", "some-mcp-server"]}}}
+```
+
+技能：在 `.xsh/skills/<name>.md` 写入 Markdown 指令包（首行作为摘要），模型可用
+`skill` 工具按需加载；记忆：`memory` 工具写入 `.xsh/memory.md`，`/reload` 可重读磁盘。
+
