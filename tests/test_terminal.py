@@ -77,6 +77,16 @@ def test_find_reports_matches(terminal: tuple[Terminal, io.StringIO], tmp_path: 
     assert "No matches" in buffer.getvalue()
 
 
+def test_find_matches_tool_call_arguments(terminal: tuple[Terminal, io.StringIO], tmp_path: Path) -> None:
+    from xsh.messages import ToolCall
+
+    term, buffer = terminal
+    session = Session.create(tmp_path / "t.jsonl", tmp_path, "system prompt")
+    session.append(Message(role="assistant", content=None, tool_calls=[ToolCall(id="1", name="read", arguments='{"file_path": "unique_path.txt"}')]))
+    term.find(session, "unique_path")
+    assert "match" in buffer.getvalue()
+
+
 def test_usage_renders_totals(terminal: tuple[Terminal, io.StringIO], tmp_path: Path) -> None:
     term, buffer = terminal
     term.context_window = 1000

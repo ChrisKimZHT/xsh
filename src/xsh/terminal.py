@@ -14,6 +14,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from xsh.agent import TurnResult
+from xsh.messages import Message
 from xsh.session import Session, usage_totals
 
 _REFRESH_PER_SECOND = 10
@@ -352,19 +353,25 @@ class Terminal:
                 self.console.print(Text(f"  {call.name}({call.arguments})", style="dim"))
 
     def find(self, session: Session, needle: str) -> None:
-        """在会话消息中查找文本并打印最近若干条匹配。"""
+        """在会话消息（含工具调用参数）中查找文本并打印最近若干条匹配。"""
         needle_lower = needle.lower()
+
+        def haystack(message: Message) -> str:
+            parts = [message.content or ""]
+            parts.extend(f"{call.name} {call.arguments}" for call in message.tool_calls)
+            return "\n".join(parts)
+
         hits = [
             (index, message, position)
             for index, (message, position) in enumerate(zip(session.messages, session.message_positions, strict=True))
-            if needle_lower in (message.content or "").lower()
+            if needle_lower in haystack(message).lower()
         ]
         if not hits:
             self.console.print(Text(f"No matches for {needle!r}.", style="dim"))
             return
         self.console.print(Text(f"{len(hits)} match(es) for {needle!r} (showing up to 10):", style="cyan"))
         for index, message, position in hits[-10:]:
-            snippet = " ".join((message.content or "").split())[:120]
+            snippet = " ".join(haystack(message).split())[:120]
             where = f"Turn {position[0]}, step {position[1]}" if position else "system/summary"
             self.console.print(Text(f"  [{index}] {message.role} ({where}): {snippet}", style="dim"))
 
