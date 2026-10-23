@@ -107,6 +107,8 @@ class FileTools:
 
     def read(self, args: ReadArgs) -> str:
         path = self.resolve(args.file_path)
+        if self.permissions is not None:
+            self.permissions.require_path(path)
         data = self._read_bytes(path)
         text = data.decode("utf-8")
         lines = text.splitlines()

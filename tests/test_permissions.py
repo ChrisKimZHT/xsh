@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from xsh.permissions import Permissions
-from xsh.tools.files import FileTools, WriteArgs
+from xsh.tools.files import FileTools, ReadArgs, WriteArgs
 from xsh.tools.shell import ShellArgs, ShellTools
 
 
@@ -26,11 +26,14 @@ def test_load_parses_patterns(tmp_path: Path) -> None:
     assert permissions.command_allowed("ls -la")
 
 
-def test_file_tool_denies_matching_write(tmp_path: Path) -> None:
+def test_file_tool_denies_matching_write_and_read(tmp_path: Path) -> None:
     permissions = Permissions(deny_paths=["*.secret"])
     tools = FileTools(tmp_path, permissions=permissions)
     with pytest.raises(ValueError, match="denied by the permission policy"):
         tools.write(WriteArgs(file_path="key.secret", content="x"))
+    (tmp_path / "key.secret").write_text("secret", encoding="utf-8")
+    with pytest.raises(ValueError, match="denied by the permission policy"):
+        tools.read(ReadArgs(file_path="key.secret"))
     # 非匹配路径不受影响
     tools.write(WriteArgs(file_path="ok.txt", content="x"))
 

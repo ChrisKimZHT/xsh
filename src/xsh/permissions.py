@@ -5,7 +5,7 @@
     {"deny_paths": ["**/.env", "secrets/**"], "deny_commands": ["rm -rf *", "git push*"]}
 
 - 未配置文件时一切照旧（允许）。
-- `deny_paths` 拒绝对其匹配路径的**写入**（write/edit/multiedit）。
+- `deny_paths` 拒绝对其匹配路径的**读取与写入**（read/write/edit/multiedit）。
 - `deny_commands` 拒绝匹配的 shell 命令。
 """
 
@@ -47,7 +47,7 @@ class Permissions:
 
     def require_path(self, path: Path) -> None:
         if not self.path_allowed(path):
-            raise ValueError(f"Writing to {path} is denied by the permission policy")
+            raise ValueError(f"Access to {path} is denied by the permission policy")
 
     def require_command(self, command: str) -> None:
         if not self.command_allowed(command):
