@@ -1,6 +1,8 @@
 """model.py - 实现调用 OpenAI 库的相关模型请求逻辑"""
 
+import json
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any, Protocol
 
 from openai import APIError, OpenAI
@@ -8,8 +10,8 @@ from openai import APIError, OpenAI
 from xsh.messages import Message, ModelResponse, ToolCall
 
 
-def discover_context_window(client: OpenAI, model: str) -> int | None:
-    """尝试从当前服务商获取上下文容量，若服务商不支持将会失败"""
+def _probe_context_window(client: OpenAI, model: str) -> int | None:
+    """向当前服务商实际探测上下文容量，服务商不支持时返回 None"""
     try:
         models = client.with_options(timeout=5.0, max_retries=0).models.list()
         match_models = list(filter(lambda m: m.id == model, models.data))
@@ -29,6 +31,40 @@ def discover_context_window(client: OpenAI, model: str) -> int | None:
     except (APIError, ValueError, TypeError, AttributeError):
         return None
     return None
+
+
+def _load_context_window_cache(path: Path) -> dict[str, Any]:
+    """读取缓存文件，任何读取或解析失败都视为空缓存"""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _save_context_window_cache(path: Path, cache: dict[str, Any]) -> None:
+    """写入缓存文件，写入失败时静默忽略，不影响主流程"""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def discover_context_window(client: OpenAI, model: str, state_dir: Path) -> int | None:
+    """尝试从当前服务商获取上下文容量，若服务商不支持将会失败。"""
+    cache_path = state_dir / "context-window.json"
+    key = f"{client.base_url}::{model}"
+
+    cache = _load_context_window_cache(cache_path)
+    if key in cache:  # 命中缓存：None 也代表“已确认服务商不提供”，直接返回
+        value = cache[key]
+        return value if type(value) is int and value > 0 else None
+
+    result = _probe_context_window(client, model)
+    cache[key] = result
+    _save_context_window_cache(cache_path, cache)
+    return result
 
 
 class Model(Protocol):

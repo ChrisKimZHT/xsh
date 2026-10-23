@@ -133,7 +133,7 @@ def main(argv: list[str] | None = None) -> int:
             max_retries=settings.max_retries,  # OpenAI 库自带请求重试
         ) as client:
             # 获取模型的上下文长度
-            terminal.context_window = discover_context_window(client, settings.model) or settings.context_window
+            terminal.context_window = discover_context_window(client, settings.model, workspace / STATE_DIRECTORY) or settings.context_window
 
             # 自动压缩必须要有上下文窗口参数，否则无法计算上下文压力
             if settings.auto_compact and terminal.context_window is None:
