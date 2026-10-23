@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from xsh.tools.files import EditArgs, FileTools, GlobArgs, GrepArgs, ReadArgs, WriteArgs
+from xsh.tools.files import EditArgs, FileTools, GlobArgs, GrepArgs, MultiEditArgs, ReadArgs, WriteArgs
 
 
 @pytest.fixture
@@ -89,3 +89,28 @@ def test_grep_regex_ignore_case_and_context(tools: FileTools) -> None:
 
     with pytest.raises(ValueError, match="Invalid regular expression"):
         tools.grep(GrepArgs(pattern="(", glob="*.txt", regex=True))
+
+
+def test_multiedit_applies_in_order(tools: FileTools, tmp_path: Path) -> None:
+    (tmp_path / "a.txt").write_text("one\ntwo\nthree\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="unread or changed"):
+        tools.multiedit(MultiEditArgs(file_path="a.txt", edits=[{"old_string": "one", "new_string": "1"}]))
+
+    tools.read(ReadArgs(file_path="a.txt"))
+    out = tools.multiedit(MultiEditArgs(file_path="a.txt", edits=[
+        {"old_string": "one", "new_string": "1"},
+        {"old_string": "three", "new_string": "3"},
+    ]))
+    assert "2 change(s)" in out
+    assert (tmp_path / "a.txt").read_text(encoding="utf-8") == "1\ntwo\n3\n"
+
+
+def test_multiedit_write_is_atomic_on_failure(tools: FileTools, tmp_path: Path) -> None:
+    (tmp_path / "b.txt").write_text("keep\n", encoding="utf-8")
+    tools.read(ReadArgs(file_path="b.txt"))
+    with pytest.raises(ValueError, match="not found"):
+        tools.multiedit(MultiEditArgs(file_path="b.txt", edits=[
+            {"old_string": "keep", "new_string": "changed"},
+            {"old_string": "missing", "new_string": "x"},
+        ]))
+    assert (tmp_path / "b.txt").read_text(encoding="utf-8") == "keep\n"  # 有编辑失败则不写入

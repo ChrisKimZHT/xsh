@@ -40,6 +40,17 @@ class EditArgs(ToolArgs):
     replace_all: bool = False
 
 
+class EditOperation(ToolArgs):
+    old_string: str = Field(min_length=1, description="Exact literal text to replace.")
+    new_string: str
+    replace_all: bool = False
+
+
+class MultiEditArgs(ToolArgs):
+    file_path: str = Field(min_length=1)
+    edits: list[EditOperation] = Field(min_length=1, max_length=50, description="Edits applied in order to one file.")
+
+
 class GlobArgs(ToolArgs):
     pattern: str = Field(default="*", min_length=1, description="Relative glob, e.g. **/*.py.")
 
@@ -153,6 +164,24 @@ class FileTools:
         self._save(path, after)
         replaced = count if args.replace_all else 1
         return f"Edited {path.relative_to(self.workspace)} ({replaced} match(es))"
+
+    def multiedit(self, args: MultiEditArgs) -> str:
+        """按顺序对同一文件应用多处编辑，只在全部成功时写入一次（原子）。"""
+        path = self.resolve(args.file_path)
+        text = self._existing(path)
+        total = 0
+        for operation in args.edits:
+            if operation.old_string == operation.new_string:
+                raise ValueError("old_string and new_string must differ")
+            count = text.count(operation.old_string)
+            if count == 0:
+                raise ValueError(f"old_string was not found: {operation.old_string!r}")
+            if count != 1 and not operation.replace_all:
+                raise ValueError(f"Found {count} matches for {operation.old_string!r}; provide more context or set replace_all=true")
+            text = text.replace(operation.old_string, operation.new_string, -1 if operation.replace_all else 1)
+            total += count if operation.replace_all else 1
+        self._save(path, text)
+        return f"Edited {path.relative_to(self.workspace)} ({total} change(s) across {len(args.edits)} edit(s))"
 
     def _paths(self, pattern: str):
         if Path(pattern).is_absolute() or ".." in Path(pattern).parts:
@@ -269,6 +298,17 @@ class FileTools:
                     'Read a file before editing it (the file tools require it), unless you just created or edited it in this '
                     'session. If a file changed since your last observation, read it again. Literal edits must match exactly, '
                     'including whitespace and line endings; provide enough surrounding text to identify a unique occurrence.'
+                ),
+            ),
+            Tool(
+                "multiedit",
+                "Apply several literal edits to one previously read file in a single atomic write.",
+                MultiEditArgs,
+                self.multiedit,
+                prompt_sections=(PromptSection("files:policy", 200, _FILE_GUIDANCE),),
+                guidance=(
+                    'Use multiedit to make several changes to the same file in one call: edits are applied in order and the '
+                    'file is written once, only if every edit matches. Read the file first; each old_string must match.'
                 ),
             ),
             Tool(
