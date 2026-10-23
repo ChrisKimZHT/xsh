@@ -158,7 +158,7 @@ def run_print_mode(args: argparse.Namespace) -> int:
     tools = ToolRegistry.default(
         workspace, settings, record=session.record, allow_shell=allow_shell,
         current_todos=lambda: session.todos, memory_store=memory_store, skills_library=skills_library,
-        permissions=Permissions.load(workspace / STATE_DIRECTORY / "permissions.json"),
+        permissions=Permissions.load(workspace / STATE_DIRECTORY / "permissions.json", workspace=workspace),
     )
     # --print 模式不启动子代理（保持无副作用）；仍注册工具以对齐提示词。
     tools.add(TaskTools(lambda prompts: "(subagents are unavailable in --print mode)").definitions())
@@ -289,7 +289,7 @@ def main(argv: list[str] | None = None) -> int:
             skills_library = SkillLibrary(workspace / STATE_DIRECTORY / "skills")
             tools = ToolRegistry.default(
                 workspace, settings, allow_shell=_allow_shell(args), memory_store=memory_store,
-                skills_library=skills_library, permissions=Permissions.load(workspace / STATE_DIRECTORY / "permissions.json"),
+                skills_library=skills_library, permissions=Permissions.load(workspace / STATE_DIRECTORY / "permissions.json", workspace=workspace),
             )
             # 与真实运行保持一致：补上 task/task_status（这里用占位回调，仅用于 schema/提示词）。
             tools.add(TaskTools(lambda prompts: "", start=lambda prompts: "", status=lambda job_id: "").definitions())
@@ -395,7 +395,7 @@ def main(argv: list[str] | None = None) -> int:
         # ==============================
         memory_store = MemoryStore(workspace / STATE_DIRECTORY / "memory.md")
         skills_library = SkillLibrary(workspace / STATE_DIRECTORY / "skills")
-        permissions = Permissions.load(workspace / STATE_DIRECTORY / "permissions.json")
+        permissions = Permissions.load(workspace / STATE_DIRECTORY / "permissions.json", workspace=workspace)
         tools = ToolRegistry.default(
             workspace, settings, record=session.record, report=terminal.report, allow_shell=allow_shell,
             current_todos=lambda: session.todos, memory_store=memory_store, skills_library=skills_library,

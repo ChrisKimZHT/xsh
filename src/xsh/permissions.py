@@ -16,33 +16,40 @@ from pathlib import Path
 
 
 class Permissions:
-    def __init__(self, deny_paths: list[str] | None = None, deny_commands: list[str] | None = None, deny_urls: list[str] | None = None):
+    def __init__(self, deny_paths: list[str] | None = None, deny_commands: list[str] | None = None, deny_urls: list[str] | None = None, workspace: Path | None = None):
         self.deny_paths = [pattern for pattern in (deny_paths or []) if pattern]
         self.deny_commands = [pattern for pattern in (deny_commands or []) if pattern]
         self.deny_urls = [pattern for pattern in (deny_urls or []) if pattern]
+        self.workspace = Path(workspace).resolve() if workspace is not None else None
 
     @classmethod
-    def load(cls, path: Path) -> "Permissions":
+    def load(cls, path: Path, workspace: Path | None = None) -> "Permissions":
         path = Path(path)
         if not path.is_file():
-            return cls()
+            return cls(workspace=workspace)
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            return cls()
+            return cls(workspace=workspace)
         if not isinstance(raw, dict):
-            return cls()
+            return cls(workspace=workspace)
 
         def as_list(key: str) -> list[str]:
             value = raw.get(key)
             return [str(item) for item in value] if isinstance(value, list) else []
 
-        return cls(as_list("deny_paths"), as_list("deny_commands"), as_list("deny_urls"))
+        return cls(as_list("deny_paths"), as_list("deny_commands"), as_list("deny_urls"), workspace=workspace)
 
     def path_allowed(self, path: Path) -> bool:
+        path = Path(path)
         text = str(path)
-        name = Path(text).name
-        return not any(fnmatch.fnmatch(text, pattern) or fnmatch.fnmatch(name, pattern) for pattern in self.deny_paths)
+        candidates = [text, path.name]
+        if self.workspace is not None:
+            try:
+                candidates.append(path.resolve().relative_to(self.workspace).as_posix())
+            except ValueError:
+                pass
+        return not any(fnmatch.fnmatch(candidate, pattern) for candidate in candidates for pattern in self.deny_paths)
 
     def command_allowed(self, command: str) -> bool:
         return not any(fnmatch.fnmatch(command, pattern) for pattern in self.deny_commands)

@@ -30,6 +30,12 @@ def test_load_parses_patterns(tmp_path: Path) -> None:
     assert permissions.command_allowed("ls -la")
 
 
+def test_deny_paths_match_relative_paths(tmp_path: Path) -> None:
+    permissions = Permissions(deny_paths=["secrets/**"], workspace=tmp_path)
+    assert not permissions.path_allowed(tmp_path / "secrets" / "a.txt")
+    assert permissions.path_allowed(tmp_path / "src" / "a.py")
+
+
 def test_file_tool_denies_matching_write_and_read(tmp_path: Path) -> None:
     permissions = Permissions(deny_paths=["*.secret"])
     tools = FileTools(tmp_path, permissions=permissions)
