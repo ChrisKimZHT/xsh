@@ -11,6 +11,10 @@ _INITIAL_BACKOFF_SECONDS = 15.0
 _MAX_BACKOFF_SECONDS = 300.0
 _MAX_TRANSIENT_RETRIES = 10
 
+# 非暂时性错误的容忍策略：有限次继续，避免偶发错误直接结束进程。
+_FAILURE_BACKOFF_SECONDS = 10.0
+_MAX_CONSECUTIVE_FAILURES = 5
+
 
 @dataclass(frozen=True)
 class NonStopTask:
@@ -61,15 +65,17 @@ def run_non_stop(
     resumed: bool = False,
     report: Callable[[str, str], None] | None = None,
 ) -> int:
-    """Continue model-ended Turns until interruption or a non-retryable runtime error.
+    """Continue model-ended Turns until interruption or repeated failure.
 
-    暂时性故障（限流 429、超时、连接中断、5xx）不会结束进程，而是退避后重试，
-    以保证长时间无人值守运行时进程存活；只有永久性错误或重试耗尽才退出。
+    暂时性故障（限流 429、超时、连接中断、5xx）不会结束进程，而是退避后重试；
+    其它非暂时性错误也不会立即结束进程，而是有限次重试后续 Turn，避免偶发错误
+    打断长时间无人值守运行。只有持续失败才退出，交给监督脚本处理。
     """
     notify = report or (lambda kind, text: None)
     prompt = task.next_prompt if resumed else task.prompt
     backoff = _INITIAL_BACKOFF_SECONDS
     retries = 0
+    failures = 0
     try:
         while True:
             result = agent.run(prompt)
@@ -88,8 +94,17 @@ def run_non_stop(
                 prompt = task.next_prompt
                 continue
             if result.status not in {"completed", "max_tokens", "stopped", "step_limit"}:
-                return 1
+                failures += 1
+                if failures > _MAX_CONSECUTIVE_FAILURES:
+                    notify("retry", f"Turn failed {failures} times in a row; exiting so a supervisor can restart.")
+                    return 1
+                kind = result.error.split(":", 1)[0] or result.status
+                notify("retry", f"Turn failed ({kind}); continuing ({failures}/{_MAX_CONSECUTIVE_FAILURES}) after a short pause.")
+                time.sleep(_FAILURE_BACKOFF_SECONDS)
+                prompt = task.next_prompt
+                continue
             retries = 0
+            failures = 0
             backoff = _INITIAL_BACKOFF_SECONDS
             prompt = task.next_prompt
     except KeyboardInterrupt:

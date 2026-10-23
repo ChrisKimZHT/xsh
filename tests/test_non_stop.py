@@ -49,11 +49,25 @@ def test_transient_error_gives_up_after_limit(no_sleep: list[float]) -> None:
     assert len(no_sleep) == non_stop._MAX_TRANSIENT_RETRIES
 
 
-def test_non_retryable_error_stops(no_sleep: list[float]) -> None:
-    agent = _FakeAgent([TurnResult("error", steps=1, error="ValueError: bad", retryable=False)])
+def test_non_retryable_error_then_recovers(no_sleep: list[float]) -> None:
+    agent = _FakeAgent([
+        TurnResult("error", steps=1, error="ValueError: bad", retryable=False),
+        TurnResult("completed", steps=1, text="ok"),
+        TurnResult("cancelled", steps=0),
+    ])
+    assert _run(agent) == 130
+    assert len(agent.prompts) == 3
+    assert no_sleep == [non_stop._FAILURE_BACKOFF_SECONDS]
+
+
+def test_non_retryable_error_gives_up_after_limit(no_sleep: list[float]) -> None:
+    agent = _FakeAgent([
+        TurnResult("error", steps=1, error="ValueError: bad", retryable=False)
+        for _ in range(non_stop._MAX_CONSECUTIVE_FAILURES + 1)
+    ])
     assert _run(agent) == 1
-    assert len(agent.prompts) == 1
-    assert no_sleep == []
+    assert len(agent.prompts) == non_stop._MAX_CONSECUTIVE_FAILURES + 1
+    assert no_sleep == [non_stop._FAILURE_BACKOFF_SECONDS] * non_stop._MAX_CONSECUTIVE_FAILURES
 
 
 def test_cancelled_stops(no_sleep: list[float]) -> None:
