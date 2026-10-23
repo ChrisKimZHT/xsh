@@ -22,6 +22,7 @@ class Tool:
     description: str
     parameters: type[ToolArgs]
     execute: Callable[[ToolArgs], str]
+    output_limit: int = _OUTPUT_LIMIT
 
     def schema(self) -> dict:
         return {
@@ -54,10 +55,12 @@ class ToolRegistry:
 
     def execute(self, call: ToolCall) -> Message:
         """执行工具调用，并返回工具结果消息"""
+        output_limit = _OUTPUT_LIMIT
         try:
             tool = self.tools.get(call.name)
             if tool is None:
                 raise ValueError(f"Unknown tool: {call.name}")
+            output_limit = tool.output_limit
             args = tool.parameters.model_validate_json(call.arguments)
             content = tool.execute(args)
         except Exception as error:
@@ -66,5 +69,5 @@ class ToolRegistry:
         return Message(
             role="tool",
             tool_call_id=call.id,
-            content=bounded(content),  # 限制输出长度，防止过长
+            content=bounded(content, output_limit),  # 限制完整工具输出长度，防止过长
         )

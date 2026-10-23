@@ -21,6 +21,28 @@ class Settings(BaseModel):
     compact_max_tokens: int = Field(default=8192, ge=1)
     request_timeout: float = Field(default=600, gt=0)
     max_retries: int = Field(default=3, ge=0, le=10)
+    search_base_url: str = "https://api.deepseek.com/anthropic/v1"
+    search_model: str = Field(default="deepseek-v4-flash", min_length=1)
+    search_api_key: SecretStr | None = None
+
+    @field_validator("search_api_key", mode="before")
+    @classmethod
+    def check_search_key(cls, value):
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @field_validator("search_base_url")
+    @classmethod
+    def check_search_url(cls, value: str) -> str:
+        url = urlsplit(value)
+        if url.scheme not in {"http", "https"} or not url.hostname:
+            raise ValueError("Expected an http(s) search API base URL")
+        if url.username is not None or url.password is not None or url.query or url.fragment:
+            raise ValueError("Use a search base URL without credentials, query, or fragment")
+        if url.path.rstrip("/").endswith("/messages"):
+            raise ValueError("Provide the search base URL, without /messages")
+        return value.rstrip("/")
 
     @model_validator(mode="after")
     def check_compaction(self) -> "Settings":
