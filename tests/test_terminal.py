@@ -92,3 +92,15 @@ def test_sessions_renders_entries(terminal: tuple[Terminal, io.StringIO]) -> Non
     assert "No saved sessions" in buffer.getvalue()
     term.sessions([(1_700_000_000_000_000_000, 123, "a.jsonl")])
     assert "a.jsonl" in buffer.getvalue()
+
+
+def test_stats_renders_overview(terminal: tuple[Terminal, io.StringIO], tmp_path: Path) -> None:
+    from xsh.messages import ToolCall
+
+    term, buffer = terminal
+    session = Session.create(tmp_path / "st.jsonl", tmp_path, "system prompt")
+    session.append(Message(role="user", content="hi"))
+    session.append(Message(role="assistant", content=None, tool_calls=[ToolCall(id="1", name="read", arguments="{}")]))
+    term.stats(session)
+    out = buffer.getvalue()
+    assert "Session stats" in out and "Tool calls: 1" in out

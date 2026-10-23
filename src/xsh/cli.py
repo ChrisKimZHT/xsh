@@ -345,6 +345,9 @@ def main(argv: list[str] | None = None) -> int:
                     case "/usage" | "/u":
                         terminal.usage(session)
                         return 0
+                    case "/stats":
+                        terminal.stats(session)
+                        return 0
                     case "/help" | "/?":
                         terminal.intro()
                         return 0

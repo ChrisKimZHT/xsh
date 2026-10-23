@@ -30,6 +30,7 @@ _INTRO = """\
 - `/find <text>` — Search the conversation for text
 - `/todos` — Show the persisted task list
 - `/usage` — Show cumulative token usage
+- `/stats` — Show a session overview (turns, messages, tools, todos)
 - `/sessions` — List saved sessions in this workspace
 - `/export [file]` — Write the conversation to a Markdown transcript
 - `/help` — Show this help
@@ -351,6 +352,17 @@ class Terminal:
         text.append(f"\nOutput: {totals['completion_tokens']:,} tokens", style="dim")
         text.append(f"\nTotal: {totals['total_tokens']:,} tokens", style="dim")
         self.console.print(Panel(text, title="Session usage", title_align="left", border_style="cyan", expand=False))
+
+    def stats(self, session: Session) -> None:
+        """打印会话概览（轮次/消息/工具调用/清单/用量）。"""
+        totals = usage_totals(session.path)
+        tool_calls = sum(len(message.tool_calls) for message in session.messages)
+        text = Text(f"Turns: {session.turn_count}")
+        text.append(f"\nMessages: {len(session.messages)}", style="dim")
+        text.append(f"\nTool calls: {tool_calls}", style="dim")
+        text.append(f"\nTodos: {len(session.todos)}", style="dim")
+        text.append(f"\nTotal tokens: {totals['total_tokens']:,}", style="dim")
+        self.console.print(Panel(text, title="Session stats", title_align="left", border_style="cyan", expand=False))
 
     def sessions(self, entries: list[tuple[float, int, str]]) -> None:
         """打印工作区内的会话列表 (mtime_ns, size, name)。"""
