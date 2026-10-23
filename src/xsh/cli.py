@@ -111,6 +111,12 @@ def main(argv: list[str] | None = None) -> int:
             if args.workspace and workspace != session.workspace:
                 raise ValueError("Resumed session belongs to a different workspace")
             workspace = session.workspace
+            if session.recovered_tool_calls:
+                terminal.report(
+                    "recovery",
+                    f"Recovered {session.recovered_tool_calls} interrupted tool call(s); "
+                    "their results are marked in the session. Inspect external state before retrying a mutation.",
+                )
         else:
             filename = datetime.now().strftime("%Y%m%d-%H%M%S-") + uuid4().hex[:8] + ".jsonl"
             default_path = workspace / _SESSION_DIRECTORY / filename

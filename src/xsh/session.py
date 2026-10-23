@@ -62,6 +62,7 @@ class Session:
         self.pending: dict[str, ToolCall] = {}  # 尚未收到结果的工具调用
         self.started: set[str] = set()          # 已记录开始执行、尚未收到结果的调用 ID
         self.non_stop_task: dict[str, Any] | None = None
+        self.recovered_tool_calls = 0  # 恢复会话时补齐的未完成工具调用数量
 
     @classmethod
     def create(cls, path: Path, workspace: Path, system_prompt: str) -> "Session":
@@ -118,7 +119,7 @@ class Session:
             raise ValueError("Missing system prompt")
 
         # 中断前可能已产生副作用，恢复时不自动重跑工具。
-        session.repair_pending()
+        session.recovered_tool_calls = session.repair_pending()
         return session
 
     def update_system_prompt(self, content: str) -> None:
@@ -196,8 +197,9 @@ class Session:
         self.record("tool_start", {"id": call.id, "name": call.name})
         self.started.add(call.id)
 
-    def repair_pending(self) -> None:
-        """为未完成的工具调用补写错误结果，不重新执行。"""
+    def repair_pending(self) -> int:
+        """为未完成的工具调用补写错误结果，不重新执行，返回补齐的调用数量。"""
+        repaired = 0
         for call in list(self.pending.values()):
             if call.id in self.started:  # 已开始的调用无法确定是否完成，需要用户检查实际状态。
                 detail = (
@@ -207,3 +209,5 @@ class Session:
             else:
                 detail = "TOOL_NOT_STARTED: this call was interrupted before dispatch."
             self.append(Message(role="tool", tool_call_id=call.id, content="Error: " + detail))
+            repaired += 1
+        return repaired

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from xsh.messages import Message
+from xsh.messages import Message, ToolCall
 from xsh.session import Session
 
 
@@ -64,3 +64,33 @@ def test_load_rejects_missing_header(tmp_path: Path) -> None:
     path.write_text('{"time": "x", "type": "message", "data": {}}\n', encoding="utf-8")
     with pytest.raises(ValueError, match="Missing session header"):
         Session.load(path)
+
+
+def test_load_marks_started_tool_call_as_unknown(tmp_path: Path) -> None:
+    session = _new_session(tmp_path)
+    call = ToolCall(id="c1", name="shell", arguments="{}")
+    session.append(Message(role="user", content="go"))
+    session.append(Message(role="assistant", tool_calls=[call]))
+    session.start_tool(call)  # 已派发但未收到结果
+
+    loaded = Session.load(session.path)
+    assert loaded.recovered_tool_calls == 1
+    assert loaded.messages[-1].role == "tool"
+    assert "TOOL_OUTCOME_UNKNOWN" in (loaded.messages[-1].content or "")
+
+
+def test_load_marks_unstarted_tool_call_as_not_started(tmp_path: Path) -> None:
+    session = _new_session(tmp_path)
+    call = ToolCall(id="c2", name="read", arguments="{}")
+    session.append(Message(role="user", content="go"))
+    session.append(Message(role="assistant", tool_calls=[call]))
+
+    loaded = Session.load(session.path)
+    assert loaded.recovered_tool_calls == 1
+    assert "TOOL_NOT_STARTED" in (loaded.messages[-1].content or "")
+
+
+def test_repair_pending_returns_zero_when_nothing_pending(tmp_path: Path) -> None:
+    session = _new_session(tmp_path)
+    session.append(Message(role="user", content="hi"))
+    assert session.repair_pending() == 0

@@ -138,6 +138,9 @@ class Terminal:
         elif kind == "retry":  # 非停机模式下的暂时性故障重试提示
             self.console.print(Text(text, style="yellow"))
 
+        elif kind == "recovery":  # 恢复会话时补齐了未完成的工具调用
+            self.console.print(Text(text, style="yellow"))
+
         elif kind == "assistant_start":  # 模型开始输出
             self._text = ""
             self._reasoning = False
