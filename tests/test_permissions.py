@@ -17,7 +17,7 @@ def test_load_defaults_to_allow_all(tmp_path: Path) -> None:
     permissions = Permissions.load(tmp_path / "missing.json")
     assert permissions.path_allowed(tmp_path / "anything.txt")
     assert permissions.command_allowed("rm -rf /")
-    assert permissions.summary() == "0 path pattern(s), 0 command pattern(s)"
+    assert permissions.summary() == "0 path pattern(s), 0 command pattern(s), 0 url pattern(s)"
 
 
 def test_load_parses_patterns(tmp_path: Path) -> None:
@@ -67,3 +67,23 @@ def test_registry_wires_permissions(tmp_path: Path) -> None:
     registry = ToolRegistry.default(tmp_path, settings, permissions=Permissions(deny_paths=["*.secret"]))
     call = ToolCall(id="1", name="write", arguments=json.dumps({"file_path": "a.secret", "content": "x"}))
     assert "denied by the permission policy" in registry.execute(call).content
+
+
+def test_url_permission_filters_search_and_fetch(monkeypatch: pytest.MonkeyPatch) -> None:
+    from xsh.tools import web as web_module
+    from xsh.tools.web import FetchArgs, SearchArgs, WebTools
+
+    settings = Settings(base_url="https://api.example/v1", model="m", api_key="k")
+    permissions = Permissions(deny_urls=["http://blocked.test/*"])
+    monkeypatch.setattr(
+        WebTools, "_search",
+        lambda self, body: [{"url": "http://blocked.test/a", "title": "B"}, {"url": "http://ok.test/a", "title": "O"}],
+    )
+    tools = WebTools(settings, permissions=permissions)
+    out = tools.search(SearchArgs(queries=["q"]))
+    assert "blocked.test" not in out and "ok.test" in out
+
+    monkeypatch.setattr(web_module, "_fetch_page", lambda value: (value, 200, "text", "body", False))
+    with pytest.raises(ValueError, match="denied by the permission policy"):
+        tools.fetch(FetchArgs(url="http://blocked.test/a"))
+    assert "body" in tools.fetch(FetchArgs(url="http://ok.test/a"))

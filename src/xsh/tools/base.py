@@ -94,7 +94,7 @@ class ToolRegistry:
         from xsh.tools.web import WebTools
 
         definitions = FileTools(workspace, permissions=permissions).definitions()
-        definitions.extend(WebTools(settings, record=record).definitions())
+        definitions.extend(WebTools(settings, record=record, permissions=permissions).definitions())
         definitions.extend(TodoTools(record=record, report=report, current=current_todos).definitions())
         if memory_store is not None:
             definitions.extend(MemoryTools(memory_store, report=report).definitions())

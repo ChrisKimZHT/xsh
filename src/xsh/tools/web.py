@@ -282,9 +282,10 @@ def _html_to_markdown(content: str) -> str:
 
 
 class WebTools:
-    def __init__(self, settings: Settings, record: Callable[[str, dict], None] | None = None):
+    def __init__(self, settings: Settings, record: Callable[[str, dict], None] | None = None, permissions: object | None = None):
         self.settings = settings
         self.record = record
+        self.permissions = permissions
 
     def _search(self, body: dict) -> list[dict[str, str]]:
         key = (self.settings.search_api_key or self.settings.api_key).get_secret_value()
@@ -324,7 +325,10 @@ class WebTools:
         for rank in range(max(map(len, results), default=0)):
             for result in results:
                 if rank < len(result):
-                    sources.setdefault(result[rank]["url"], result[rank])
+                    url = result[rank].get("url", "")
+                    if self.permissions is not None and not self.permissions.url_allowed(url):
+                        continue
+                    sources.setdefault(url, result[rank])
         lines = []
         for source in list(sources.values())[:args.max_results]:
             line = f"- [{source.get('title') or source['url']}]({source['url']})"
@@ -339,6 +343,8 @@ class WebTools:
         return bounded(text + "\n\nCite the relevant URLs above as Markdown links in your answer.")
 
     def fetch(self, args: FetchArgs) -> str:
+        if self.permissions is not None:
+            self.permissions.require_url(args.url)
         url, status, kind, content, truncated = _fetch_page(args.url)
         text = _html_to_markdown(content) if kind == "html" else content
         output = f"Fetched {url} (HTTP {status})\n\n{_EXTERNAL_NOTICE}\n\n{text}"
