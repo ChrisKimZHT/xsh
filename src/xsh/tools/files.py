@@ -217,7 +217,7 @@ class FileTools:
                         resolved = self.resolve(str(relative))
                     except ValueError:
                         continue
-                    if resolved.is_file():
+                    if resolved.is_file() and (self.permissions is None or self.permissions.path_allowed(resolved)):
                         yield resolved, relative.as_posix()
 
     def glob(self, args: GlobArgs) -> str:
