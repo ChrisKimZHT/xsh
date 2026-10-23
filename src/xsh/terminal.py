@@ -375,6 +375,8 @@ class Terminal:
         text.append(f"\nInput: {totals['prompt_tokens']:,} tokens", style="dim")
         text.append(f"\nOutput: {totals['completion_tokens']:,} tokens", style="dim")
         text.append(f"\nTotal: {totals['total_tokens']:,} tokens", style="dim")
+        if self.context_window:
+            text.append(f"\nContext window: {self.context_window:,} tokens", style="dim")
         self.console.print(Panel(text, title="Session usage", title_align="left", border_style="cyan", expand=False))
 
     def stats(self, session: Session) -> None:

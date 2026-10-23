@@ -79,11 +79,13 @@ def test_find_reports_matches(terminal: tuple[Terminal, io.StringIO], tmp_path: 
 
 def test_usage_renders_totals(terminal: tuple[Terminal, io.StringIO], tmp_path: Path) -> None:
     term, buffer = terminal
+    term.context_window = 1000
     session = Session.create(tmp_path / "u.jsonl", tmp_path, "system prompt")
     session.record("turn_end", {"usage": {"prompt_tokens": 7, "completion_tokens": 3, "total_tokens": 10}})
     term.usage(session)
     assert "Session usage" in buffer.getvalue()
     assert "10" in buffer.getvalue()
+    assert "Context window: 1,000 tokens" in buffer.getvalue()
 
 
 def test_sessions_renders_entries(terminal: tuple[Terminal, io.StringIO]) -> None:
