@@ -31,6 +31,7 @@ _INTRO = """\
 - `/todos` — Show the persisted task list
 - `/memory` — Show the workspace long-term memory
 - `/skills` — List available workspace skills
+- `/tasks` — List background subtasks
 - `/config` — Show the effective runtime configuration
 - `/usage` — Show cumulative token usage
 - `/stats` — Show a session overview (turns, messages, tools, todos)
@@ -167,6 +168,10 @@ class Terminal:
         elif kind == "config":  # 运行配置概览
             self._stop_tool()
             self.console.print(Panel(Text(text), title="Config", title_align="left", border_style="cyan", expand=False))
+
+        elif kind == "tasks":  # 后台任务
+            self._stop_tool()
+            self.console.print(Panel(Text(text), title="Tasks", title_align="left", border_style="magenta", expand=False))
 
         elif kind == "subtask":  # 子代理进度
             self.console.print(Text(text, style="dim"))

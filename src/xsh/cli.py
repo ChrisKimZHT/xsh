@@ -357,13 +357,15 @@ def main(argv: list[str] | None = None) -> int:
             tools.add(TaskTools(run_subtask, start=start_background, status=task_status).definitions())
 
             # 外部 MCP 服务器（可选）：连接后把其工具接入本地工具集。
-            mcp_clients = start_clients(load_servers(workspace / STATE_DIRECTORY / "mcp.json"), workspace)
+            mcp_servers = load_servers(workspace / STATE_DIRECTORY / "mcp.json")
+            mcp_clients = start_clients(mcp_servers, workspace)
+            if mcp_servers:
+                terminal.report("subtask", f"MCP: {len(mcp_clients)}/{len(mcp_servers)} server(s) connected")
             if mcp_clients:
                 atexit.register(lambda: [client.close() for client in mcp_clients])
                 mcp_definitions = build_mcp_tools(mcp_clients)
                 if mcp_definitions:
                     tools.add(mcp_definitions)
-                terminal.report("subtask", f"Connected {len(mcp_clients)} MCP server(s), {len(mcp_definitions)} tool(s)")
 
             # 系统提示词在工具集完整后构建，确保所有工具指导文案都进入提示词。
             system_prompt = build_prompt(workspace, model=settings.model, tools=tools, non_stop_mode=non_stop_mode, memory=memory_store.render(), skills=skills_library.render_index())
@@ -431,6 +433,9 @@ def main(argv: list[str] | None = None) -> int:
                         return 0
                     case "/skills":
                         terminal.report("skills", skills_library.render_index() or "(no skills)")
+                        return 0
+                    case "/tasks":
+                        terminal.report("tasks", task_status(""))
                         return 0
                     case "/config" | "/settings":
                         lines = [
