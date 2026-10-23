@@ -1,5 +1,6 @@
 """agent.py - Agent 对象，维护 Agent 的 Step 循环"""
 
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
@@ -228,8 +229,15 @@ class Agent:
                     self.report("tool", call.name)  # 通知终端已收到当前工具调用
                     self.session.start_tool(call)
                     self.report("tool_start", call.name)  # 开始记录落盘后、实际执行前更新运行状态
+                    started = time.perf_counter()
                     result = self.tools.execute(call)
                     self.session.append(result)
+                    self.session.record("tool_end", {
+                        "id": call.id,
+                        "name": call.name,
+                        "seconds": round(time.perf_counter() - started, 3),
+                        "chars": len(result.content or ""),
+                    })
                     self.report("tool_result", result.content or "")
 
             # 循环跑完了，说明 Step 超限，该 Turn 可能未完成，但必须结束
