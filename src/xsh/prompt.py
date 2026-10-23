@@ -44,7 +44,7 @@ def render_prompt(sections: Iterable[PromptSection]) -> str:
     )
 
 
-def build_prompt(workspace: Path, *, model: str, tools: "ToolRegistry", non_stop_mode: bool = False) -> str:
+def build_prompt(workspace: Path, *, model: str, tools: "ToolRegistry", non_stop_mode: bool = False, memory: str = "") -> str:
     """Assemble identity, general guidance, active tools and workspace instructions."""
     workspace = workspace.resolve()
     sections = [
@@ -52,6 +52,7 @@ def build_prompt(workspace: Path, *, model: str, tools: "ToolRegistry", non_stop
         PromptSection("deployment:persona", 0, f"You are a coding assistant powered by the {model} model."),
         PromptSection("harness:guidance", 100, files("xsh").joinpath("prompts/system.md").read_text(encoding="utf-8")),
         *tools.prompt_sections(),
+        PromptSection("context:memory", 900, ("Workspace memory (durable notes from past sessions; keep it accurate):\n\n" + memory) if memory.strip() else ""),
         PromptSection("context:workspace", 1000, f"Workspace: {workspace}"),
     ]
     instructions = workspace / "AGENTS.md"

@@ -19,6 +19,7 @@ from xsh.agent import Agent
 from xsh.compaction import Compactor
 from xsh.config import STATE_DIRECTORY, Settings
 from xsh.maintenance import compact_session_file
+from xsh.memory import MemoryStore
 from xsh.model import OpenAIModel, discover_context_window
 from xsh.non_stop import NonStopTask, run_non_stop
 from xsh.prompt import build_prompt
@@ -174,12 +175,13 @@ def main(argv: list[str] | None = None) -> int:
         try:
             workspace = (args.workspace or Path.cwd()).resolve(strict=True)
             settings = _settings_from_args(args)
-            tools = ToolRegistry.default(workspace, settings, allow_shell=args.allow_shell)
+            memory_store = MemoryStore(workspace / STATE_DIRECTORY / "memory.md")
+            tools = ToolRegistry.default(workspace, settings, allow_shell=args.allow_shell, memory_store=memory_store)
             if args.list_tools:
                 for name, tool in sorted(tools.tools.items()):
                     print(f"{name}\t{tool.description}")
             else:
-                print(build_prompt(workspace, model=settings.model, tools=tools, non_stop_mode=args.non_stop_mode))
+                print(build_prompt(workspace, model=settings.model, tools=tools, non_stop_mode=args.non_stop_mode, memory=memory_store.render()))
             return 0
         except (ValidationError, OSError, ValueError) as error:
             print(f"xsh: {error}", file=sys.stderr)
@@ -253,7 +255,8 @@ def main(argv: list[str] | None = None) -> int:
         # ==============================
         # 阶段 3：注册基础工具
         # ==============================
-        tools = ToolRegistry.default(workspace, settings, record=session.record, report=terminal.report, allow_shell=args.allow_shell, current_todos=lambda: session.todos)
+        memory_store = MemoryStore(workspace / STATE_DIRECTORY / "memory.md")
+        tools = ToolRegistry.default(workspace, settings, record=session.record, report=terminal.report, allow_shell=args.allow_shell, current_todos=lambda: session.todos, memory_store=memory_store)
         non_stop_mode = args.non_stop_mode or session.non_stop_task is not None
 
         # ==============================
@@ -280,8 +283,8 @@ def main(argv: list[str] | None = None) -> int:
                 def one(subtask: str) -> str:
                     directory = workspace / STATE_DIRECTORY / "subtasks"
                     sub_session = Session.create(directory / f"{uuid4().hex}.jsonl", workspace, "")
-                    sub_tools = ToolRegistry.default(workspace, settings, record=sub_session.record, allow_shell=args.allow_shell, current_todos=lambda: sub_session.todos)
-                    sub_session.update_system_prompt(build_prompt(workspace, model=settings.model, tools=sub_tools, non_stop_mode=False))
+                    sub_tools = ToolRegistry.default(workspace, settings, record=sub_session.record, allow_shell=args.allow_shell, current_todos=lambda: sub_session.todos, memory_store=memory_store)
+                    sub_session.update_system_prompt(build_prompt(workspace, model=settings.model, tools=sub_tools, non_stop_mode=False, memory=memory_store.render()))
                     sub_agent = Agent(model=model, session=sub_session, tools=sub_tools, max_steps=settings.max_steps, report=lambda kind, text: None)
                     result = sub_agent.run(subtask)
                     return f"Subagent: {result.status} ({result.steps} step(s))\n{result.text or result.error or '(no output)'}"
@@ -299,7 +302,7 @@ def main(argv: list[str] | None = None) -> int:
             tools.add(TaskTools(run_subtask).definitions())
 
             # 系统提示词在工具集完整后构建，确保所有工具指导文案都进入提示词。
-            system_prompt = build_prompt(workspace, model=settings.model, tools=tools, non_stop_mode=non_stop_mode)
+            system_prompt = build_prompt(workspace, model=settings.model, tools=tools, non_stop_mode=non_stop_mode, memory=memory_store.render())
             session.update_system_prompt(system_prompt)
             terminal.session(session.path)
             terminal.system_prompt(session.messages[0].content or "")
@@ -357,6 +360,9 @@ def main(argv: list[str] | None = None) -> int:
                         return 0
                     case "/todos" | "/todo":
                         terminal.report("todos", format_todos(session.todos) if session.todos else "No todos on record.")
+                        return 0
+                    case "/memory" | "/mem":
+                        terminal.report("memory", memory_store.render() or "(no memory entries)")
                         return 0
                     case "/usage" | "/u":
                         terminal.usage(session)

@@ -29,6 +29,7 @@ _INTRO = """\
 - `/list` — Show conversation history
 - `/find <text>` — Search the conversation for text
 - `/todos` — Show the persisted task list
+- `/memory` — Show the workspace long-term memory
 - `/usage` — Show cumulative token usage
 - `/stats` — Show a session overview (turns, messages, tools, todos)
 - `/sessions` — List saved sessions in this workspace
@@ -152,6 +153,10 @@ class Terminal:
         elif kind == "todos":  # 任务清单更新
             self._stop_tool()
             self.console.print(Panel(Text(text), title="Todos", title_align="left", border_style="magenta", expand=False))
+
+        elif kind == "memory":  # 长期记忆
+            self._stop_tool()
+            self.console.print(Panel(Text(text), title="Memory", title_align="left", border_style="blue", expand=False))
 
         elif kind == "subtask":  # 子代理进度
             self.console.print(Text(text, style="dim"))
